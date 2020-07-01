@@ -6,9 +6,11 @@
     {
         #region Methods
 
-        bool TryUnpack(byte[] buffer, ref int offset, int count, out IPacket packet);
+        public int GetByteLength();
 
-        void Pack(ref byte[] buffer, ref int offset, int count);
+        bool TryUnpack(byte[] buffer, ref int offset, out IPacket packet);
+
+        void Pack(ref byte[] buffer, ref int offset);
 
         ArraySegment<byte> Pack();
 
