@@ -6,6 +6,28 @@
 
     using Protocols.Utils;
 
+    /*
+         The format of an RTP packet:
+
+         0                   1                   2                   3
+         0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |V=2|P|X|  CC   |M|     PT      |       sequence number         |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |                           timestamp                           |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |           synchronization source (SSRC) identifier            |
+        +=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+=+
+        |            contributing source (CSRC) identifiers             |
+        |                            ....                               |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |                   RTP extension (OPTIONAL)                    |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+        |                          payload  ...                         |
+        |                               +-------------------------------+
+        |                               | RTP padding   | RTP pad count |
+        +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    */
     public class RtpPacket : IPacket
     {
         #region Constants
@@ -28,11 +50,11 @@
 
         public byte Version { get; set; }
 
-        public bool Padding { get; set; }
+        public bool HasPadding { get; set; }
 
-        public bool Extension { get; set; }
+        public bool HasExtension { get; set; }
 
-        public int CsrcCount { get; protected set; }
+        public byte CsrcCount { get; protected set; }
 
         public bool Marker { get; set; }
 
@@ -46,20 +68,25 @@
 
         public IReadOnlyCollection<uint> CsrcList => _csrcList;
 
+        public RtpExtension Extension { get; }
+
+        public ArraySegment<byte> Payload { get; private set; }
+
         #endregion Properties
 
         #region Constructors
 
-        public RtpPacket() 
+        public RtpPacket()
         {
             _csrcList = new List<uint>();
+            Extension = new RtpExtension();
         }
 
         #endregion Constructors
 
         #region Methods
 
-        public bool TryAddCsrc(uint csrc) 
+        public bool TryAddCsrc(uint csrc)
         {
             if (_csrcList.Count == CSRS_LIST_MAX_COUNT)
                 return false;
@@ -76,31 +103,39 @@
             CsrcCount--;
         }
 
-        public int GetByteLength() => PACKAGE_LENGTH + (CsrcCount * 4);
+        // TODO: Add calc extensions.
+        public int GetByteLength() => PACKAGE_LENGTH + CsrcCount * 4 + Extension.GetByteLength();
 
-        public bool TryUnpack(byte[] buffer, ref int offset, out IPacket packet)
+        public bool TryUnpack(byte[] buffer, ref int offset)
         {
-            packet = null;
             var bufferSpace = buffer.Length - offset;
 
             if (bufferSpace < GetByteLength())
                 return false;
 
             Version = BufferBits.GetByte(buffer, ref offset, 2);
-            Padding = BufferBits.GetBool(buffer, ref offset);
-            Extension = BufferBits.GetBool(buffer, ref offset);
+            if (Version != DEFAULT_VERSION_VALUE)
+                return false;
+
+            HasPadding = BufferBits.GetBool(buffer, ref offset);
+            HasExtension = BufferBits.GetBool(buffer, ref offset);
             CsrcCount = BufferBits.GetByte(buffer, ref offset, 4);
             Marker = BufferBits.GetBool(buffer, ref offset);
             PayloadType = BufferBits.GetByte(buffer, ref offset, 7);
-            SequenceNumber = BufferBits.GetUInt16(buffer, ref offset, 16);
-            TimeStamp = BufferBits.GetUInt32(buffer, ref offset, 32);
+            SequenceNumber = BufferBits.GetUInt16(buffer, ref offset);
+            TimeStamp = BufferBits.GetUInt32(buffer, ref offset);
 
             if (bufferSpace < GetByteLength())
                 return false;
 
             for (int i = 0; i < CsrcCount; i++)
-                _csrcList.Add(BufferBits.GetUInt32(buffer, ref offset, 32));
-            
+                _csrcList.Add(BufferBits.GetUInt32(buffer, ref offset));
+
+            if (HasExtension && !Extension.TryUnpack(buffer, ref offset))
+                return false;
+
+            // TODO: Add support Padding.
+
             return true;
         }
 
@@ -108,17 +143,20 @@
         {
             BufferBits.Prepare(ref buffer, offset, GetByteLength() * 8);
 
-            BufferBits.SetByte(buffer, ref offset, 2, Version);
-            BufferBits.SetBool(buffer, ref offset, Padding);
-            BufferBits.SetBool(buffer, ref offset, Extension);
-            BufferBits.SetValue(buffer, ref offset, 4, CsrcCount);
-            BufferBits.SetBool(buffer, ref offset, Marker);
-            BufferBits.SetValue(buffer, ref offset, 7, PayloadType);
-            BufferBits.SetValue(buffer, ref offset, 16, SequenceNumber);
-            BufferBits.SetValue(buffer, ref offset, 32, TimeStamp);
-            BufferBits.SetValue(buffer, ref offset, 32, Ssrc);
+            BufferBits.SetByte(Version, buffer, ref offset, 2);
+            BufferBits.SetBool(HasPadding, buffer, ref offset);
+            BufferBits.SetBool(HasExtension, buffer, ref offset);
+            BufferBits.SetByte(CsrcCount, buffer, ref offset, 4);
+            BufferBits.SetBool(Marker, buffer, ref offset);
+            BufferBits.SetByte(PayloadType, buffer, ref offset, 7);
+            BufferBits.SetUInt16(SequenceNumber, buffer, ref offset);
+            BufferBits.SetUInt32(TimeStamp, buffer, ref offset);
+            BufferBits.SetUInt32(Ssrc, buffer, ref offset);
             foreach (var csrc in CsrcList.Take(CsrcCount))
-                BufferBits.SetValue(buffer, ref offset, 32, csrc);
+                BufferBits.SetUInt32(csrc, buffer, ref offset);
+
+            if (HasExtension)
+                Extension.Pack(ref buffer, ref offset);
         }
 
         public ArraySegment<byte> Pack()

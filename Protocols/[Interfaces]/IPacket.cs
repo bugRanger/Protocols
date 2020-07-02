@@ -8,7 +8,7 @@
 
         public int GetByteLength();
 
-        bool TryUnpack(byte[] buffer, ref int offset, out IPacket packet);
+        bool TryUnpack(byte[] buffer, ref int offset);
 
         void Pack(ref byte[] buffer, ref int offset);
 
