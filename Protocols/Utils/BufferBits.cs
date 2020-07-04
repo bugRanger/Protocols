@@ -20,6 +20,15 @@
         public static byte GetByte(byte[] buffer, ref int offset, int count = 8)
             => Convert.ToByte(GetValue(buffer, ref offset, count));
 
+        public static byte[] GetBytes(byte[] buffer, ref int offset, int length)
+        {
+            var result = new byte[length];
+            for (var i = 0; i < length; ++i) 
+                result[i] = GetByte(buffer, ref offset);
+
+            return result;
+        }
+
         public static short GetInt16(byte[] buffer, ref int offset, int count = 16)
             => Convert.ToInt16(GetValue(buffer, ref offset, count));
 
@@ -70,9 +79,11 @@
         public static void SetByte(byte value, byte[] buffer, ref int offset, int count = 8)
             => SetValue(buffer, ref offset, count, value);
 
-        public static void SetBytes(ArraySegment<byte> extension, byte[] buffer, ref int offset)
+        public static void SetBytes(byte[] source, byte[] buffer, ref int offset, int? length = null)
         {
-            Array.Copy(extension.ToArray(), 0, buffer, offset / 8, extension.Count);
+            var count = length ?? source.Length;
+            for (var i = 0; i < count; ++i) 
+                SetByte(source[i], buffer, ref offset);
         }
 
         public static void SetInt16(short value, byte[] buffer, ref int offset, int count = 16)
@@ -93,8 +104,11 @@
         public static void SetUInt64(ulong value, byte[] buffer, ref int offset, int count = 64)
             => SetValue(buffer, ref offset, count, (long)value);
 
-        private static long GetValue(byte[] buffer, ref int offset, int count)
+        public static long GetValue(byte[] buffer, ref int offset, int count)
         {
+            if (buffer.Length == offset / 8)
+                return 0;
+
             int bytes = count / 8 + (offset % 8 > 0 ? 1 : 0);
             long mask = long.MaxValue >> (63 - count);
             long value = 0;
@@ -108,14 +122,17 @@
                 }
             }
 
-            value = (value >> offset) & mask;
+            value = (value >> (offset % 8)) & mask;
             offset += count;
 
             return value;
         }
 
-        private static void SetValue(byte[] buffer, ref int offset, int count, long value)
+        public static void SetValue(byte[] buffer, ref int offset, int count, long value)
         {
+            if (buffer.Length == offset / 8)
+                return;
+
             int bytes = count / 8 + (offset % 8 > 0 ? 1 : 0);
             long mask = long.MaxValue >> (sizeof(long) * 8 - count - 1);
             value = mask & value;
@@ -127,7 +144,7 @@
                 fixed (byte* pointerToBuffer = &buffer[offset / 8])
                 {
                     Buffer.MemoryCopy(pointerToBuffer, pointerToBufferValue, bytes, bytes);
-                    bufferValue = (bufferValue & ~(mask << offset)) | (value << offset);
+                    bufferValue = (bufferValue & ~(mask << (offset % 8))) | (value << (offset % 8));
                     Buffer.MemoryCopy(pointerToBufferValue, pointerToBuffer, bytes, bytes);
                 }
             }

@@ -70,7 +70,7 @@
 
         public RtpExtension Extension { get; }
 
-        public ArraySegment<byte> Payload { get; private set; }
+        public byte[] Payload { get; private set; }
 
         #endregion Properties
 
@@ -104,7 +104,12 @@
         }
 
         // TODO: Add calc extensions.
-        public int GetByteLength() => PACKAGE_LENGTH + CsrcCount * 4 + Extension.GetByteLength();
+        public int GetByteLength() 
+            => 
+            PACKAGE_LENGTH + 
+            CsrcCount * 4 + 
+            Extension.GetByteLength() + 
+            (Payload?.Length ?? 0);
 
         public bool TryUnpack(byte[] buffer, ref int offset)
         {
@@ -134,6 +139,8 @@
             if (HasExtension && !Extension.TryUnpack(buffer, ref offset))
                 return false;
 
+            Payload = BufferBits.GetBytes(buffer, ref offset, buffer.Length - offset);
+
             // TODO: Add support Padding.
 
             return true;
@@ -157,6 +164,8 @@
 
             if (HasExtension)
                 Extension.Pack(ref buffer, ref offset);
+
+            BufferBits.SetBytes(Payload, buffer, ref offset);
         }
 
         public ArraySegment<byte> Pack()
