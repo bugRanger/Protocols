@@ -103,7 +103,6 @@
             CsrcCount--;
         }
 
-        // TODO: Add calc extensions.
         public int GetByteLength() 
             => 
             PACKAGE_LENGTH + 
@@ -141,13 +140,12 @@
 
             Payload = BufferBits.GetBytes(buffer, ref offset, buffer.Length - offset);
 
-            // TODO: Add support Padding.
-
             return true;
         }
 
         public void Pack(ref byte[] buffer, ref int offset)
         {
+
             BufferBits.Prepare(ref buffer, offset, GetByteLength() * 8);
 
             BufferBits.SetByte(Version, buffer, ref offset, 2);
@@ -165,7 +163,8 @@
             if (HasExtension)
                 Extension.Pack(ref buffer, ref offset);
 
-            BufferBits.SetBytes(Payload, buffer, ref offset);
+            var payloadLength = buffer.Length - offset - (HasPadding ? buffer[buffer.Length] : 0);
+            BufferBits.SetBytes(Payload, buffer, ref offset, payloadLength);
         }
 
         public ArraySegment<byte> Pack()
