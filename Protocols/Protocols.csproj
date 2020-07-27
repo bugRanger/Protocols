@@ -17,4 +17,8 @@
     <Folder Include="Channels\IEC104\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="NLog" Version="4.7.2" />
+  </ItemGroup>
+
 </Project>
