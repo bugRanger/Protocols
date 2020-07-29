@@ -9,7 +9,7 @@
     {
         #region Fields
 
-        private List<uint> _extensionList;
+        private readonly List<uint> _extensionList;
 
         #endregion Fields
 
@@ -25,7 +25,10 @@
 
         #region Constructors
 
-        internal RtpExtension() { }
+        internal RtpExtension() 
+        {
+            _extensionList = new List<uint>();
+        }
 
         #endregion Constructors
 
