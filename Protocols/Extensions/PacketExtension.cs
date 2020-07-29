@@ -1,4 +1,4 @@
-﻿namespace Protocols.Utils
+﻿namespace Protocols.Extensions
 {
     public static class PacketExtension
     {

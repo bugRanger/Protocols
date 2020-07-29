@@ -6,7 +6,7 @@
     using System.Threading;
     using System.Threading.Tasks;
 
-    public interface ITcpClient : IDisposable
+    public interface ITcpStream : IDisposable
     {
         Task<NetworkStream> Open(CancellationToken token);
 

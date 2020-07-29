@@ -3,9 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30114.105
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Protocols", "Protocols\Protocols.csproj", "{95954355-9890-40AC-AF44-DA571D857651}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Protocols.Tests", "Protocols.Tests\Protocols.Tests.csproj", "{7F603EA4-03E9-4F41-A324-BE8B031C3822}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Protocols", "Protocols\Protocols.csproj", "{95954355-9890-40AC-AF44-DA571D857651}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -17,10 +15,6 @@ Global
 		{95954355-9890-40AC-AF44-DA571D857651}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{95954355-9890-40AC-AF44-DA571D857651}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{95954355-9890-40AC-AF44-DA571D857651}.Release|Any CPU.Build.0 = Release|Any CPU
-		{7F603EA4-03E9-4F41-A324-BE8B031C3822}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{7F603EA4-03E9-4F41-A324-BE8B031C3822}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{7F603EA4-03E9-4F41-A324-BE8B031C3822}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{7F603EA4-03E9-4F41-A324-BE8B031C3822}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

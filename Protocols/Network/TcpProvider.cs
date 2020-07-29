@@ -7,17 +7,14 @@
     using System.Threading.Tasks;
 
     using NLog;
-    using Protocols.Utils;
 
-    public delegate ITcpClient TcpClientFactory(IPEndPoint local, IPEndPoint remote);
+    using Framework.Common;
+
+    public delegate ITcpStream TcpClientFactory(IPEndPoint local, IPEndPoint remote);
 
     public class TcpProvider : ITcpProvider, IDisposable
     {
         #region Constants
-
-        private const int DISABLED = 0;
-
-        private const int ENABLED = 1;
 
         private const int HEADER_SIZE = 2;
 
@@ -28,14 +25,14 @@
         #region Fields
 
         private readonly ILogger _logger;
+        private readonly Locker _locker;
         private readonly TcpClientFactory _clientFactory;
         private readonly byte[] _buffer;
 
-        private ITcpClient _client;
+        private ITcpStream _client;
         private NetworkStream _stream;
         private CancellationTokenSource _cancellation;
         private bool _disposed;
-        private int _state;
 
         #endregion Fields
 
@@ -45,7 +42,7 @@
 
         public IPEndPoint Local { get; private set; }
 
-        public bool IsEnabled => Interlocked.CompareExchange(ref _state, ENABLED, ENABLED) == ENABLED;
+        public bool IsEnabled => _locker.IsEnabled();
 
         #endregion Properties
 
@@ -62,6 +59,8 @@
         public TcpProvider(TcpClientFactory clientFactory)
         {
             _logger = LogManager.GetCurrentClassLogger();
+
+            _locker = new Locker();
             _clientFactory = clientFactory;
             _buffer = new byte[PACKET_SIZE];
         }
@@ -83,10 +82,8 @@
 
         public async Task StartAsync(IPEndPoint local, IPEndPoint remote = null)
         {
-            if (Interlocked.CompareExchange(ref _state, ENABLED, DISABLED) == ENABLED)
-            {
+            if (!_locker.SetEnabled())
                 return;
-            }
 
             _cancellation = new CancellationTokenSource();
             _client = _clientFactory?.Invoke(Local = local, Remote = remote);
@@ -101,27 +98,26 @@
                 }, 
                 null);
 
-            // TODO Перенести на события ITcpClient.
             Opened?.Invoke(this, new EventArgs());
             await listener;
         }
 
         public void Stop()
         {
-            if (Interlocked.CompareExchange(ref _state, DISABLED, ENABLED) == DISABLED)
-            {
+            if (!_locker.SetDisabled())
                 return;
-            }
 
             FreeCancellationToken();
             FreeClient();
 
-            // TODO Перенести на события ITcpClient.
             Closed?.Invoke(this, new EventArgs());
         }
 
         public async Task Send(byte[] bytes)
         {
+            if (!_locker.IsEnabled())
+                return;
+
             try
             {
                 await _stream.WriteAsync(bytes, 0, 0, _cancellation.Token);
@@ -193,7 +189,7 @@
 
         private void FreeClient()
         {
-            ITcpClient client = _client;
+            ITcpStream client = _client;
             if (client == null)
                 return;
 
