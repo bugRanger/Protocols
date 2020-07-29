@@ -6,13 +6,17 @@
     using System.Threading;
     using System.Threading.Tasks;
 
+    using Framework.Common;
+
     public class TcpStream : ITcpStream
     {
         #region Fields
 
+        private readonly Locker _locker;
         private readonly IPEndPoint _local;
         private readonly IPEndPoint _remote;
         private TcpClient _client;
+        private NetworkStream _stream;
         private bool _disposed;
 
         #endregion Fields
@@ -21,6 +25,8 @@
 
         public TcpStream(IPEndPoint local, IPEndPoint remote = null) 
         {
+            _locker = new Locker();
+            
             _local = local;
             _remote = remote;
         }
@@ -42,6 +48,11 @@
 
         public async Task<NetworkStream> Open(CancellationToken token)
         {
+            if (!_locker.SetEnabled())
+            {
+                return _stream;
+            }
+            
             _client = new TcpClient(_local);
             token.Register(() => Close());
 
@@ -55,11 +66,16 @@
                 _client.Client = await _client.Client.AcceptAsync();
             }
 
-            return _client.GetStream();
+            return _stream = _client.GetStream();
         }
 
         public void Close()
         {
+            if (!_locker.SetDisabled())
+            {
+                return;
+            }
+                
             _client.Close();
         }
 
