@@ -4,7 +4,7 @@
     using System.Net;
     using System.Threading.Tasks;
 
-    public interface ITcpProvider
+    public interface INetworkProvider
     {
         #region Properties
 

@@ -12,7 +12,7 @@
 
     public delegate ITcpStream TcpClientFactory(IPEndPoint local, IPEndPoint remote);
 
-    public class TcpProvider : ITcpProvider, IDisposable
+    public class TcpProvider : INetworkProvider, IDisposable
     {
         #region Constants
 
