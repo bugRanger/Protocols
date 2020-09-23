@@ -1,6 +1,10 @@
 ﻿namespace Protocols.Channels.Sip
 {
     using System;
+    using System.Text;
+    using System.Collections.Generic;
+
+    using Framework.Common;
 
     // ==============================================================
     //          https://tools.ietf.org/html/rfc3261
@@ -46,7 +50,7 @@
 
 
     // INVITE sip:bob @biloxi.com SIP/2.0
-    // \tVia: SIP/2.0/UDP pc33.atlanta.com; branch=z9hG4bK776asdhds
+    // Via: SIP/2.0/UDP pc33.atlanta.com; branch=z9hG4bK776asdhds
     // Max-Forwards: 70
     // To: Bob<sip:bob@biloxi.com>
     // From: Alice<sip:alice@atlanta.com>;tag=1928301774
@@ -91,7 +95,7 @@
     //    /   "200"  ;  OK
     //
     //  Redirection = 
-    //    /   "300"; Multiple Choices
+    //    /   "300"  ; Multiple Choices
     //    /   "301"  ;  Moved Permanently
     //    /   "302"  ;  Moved Temporarily
     //    /   "305"  ;  Use Proxy
@@ -196,25 +200,105 @@
     // <MESSAGE_BODY>
     // =========================================================
 
-
-    public interface ISipPacketBuilder 
-    {
-
-    }
-
     public class SipPacket : IPacket
     {
+        #region Classes
+
+        private class Property
+        {
+            public Func<SipPacket, string> Get { get; }
+
+            public Action<SipPacket, string> Set { get; }
+
+            public Property(Func<SipPacket, string> getter, Action<SipPacket, string> settter) 
+            {
+                Get = getter;
+                Set = settter;
+            }
+        }
+
+        #endregion Classes
+
         #region Constants
 
-        private const byte PACKAGE_LENGTH = 0;
+        private const string SPACE = " ";
+        private const string CRLF = "\r\n";
+        private const string SEPARATOR = ":";
+        private const string VERSION = "SIP/2.0";
+
+        private static Encoding Encoding = Encoding.ASCII;
+
+        private static readonly Dictionary<string, Property> _properties;
 
         #endregion Constants
 
         #region Property
 
+        public SipMethod Method { get; set; }
+
+        public SipStatus? Status { get; set; }
+        
+        public SipUri Request { get; set; }
+
+        public SipUri From { get; set; }
+
+        public SipUri To { get; set; }
+
+        public SipUri Concact { get; set; }
+
+        public string CallId { get; set; }
+
+        public int CSeq { get; set; }
+
+        public string ContentType { get; private set; }
+
+        public int ContentLength { get; private set; }
+
+        public ArraySegment<byte> Content { get; private set; }
+
         #endregion Property
 
         #region Methods
+
+        static SipPacket()
+        {
+            // TODO: Impl others attributes.
+            _properties = new Dictionary<string, Property>(StringComparer.InvariantCultureIgnoreCase)
+            {
+                { "From", new Property((packet) => packet.From.ToString(), (packet, value) => packet.From = SipUri.Parse(value)) },
+                { "To", new Property((packet) => packet.To.ToString(), (packet, value) => packet.To = SipUri.Parse(value)) },
+                { "Contact", new Property((packet) => packet.Concact.ToString(), (packet, value) => packet.Concact = SipUri.Parse(value)) },
+                { "CSeq", new Property((packet) => packet.CSeq.ToString(), CSeqSetter) },
+                { "Call-ID", new Property((packet) => packet.CallId, (packet, value) => packet.CallId = value) },
+                { "Content-Type", new Property((packet) => packet.ContentType, (packet, value) => packet.ContentType = value) },
+                { "Content-Length", new Property((packet) => packet.ContentLength.ToString(), (packet, value) => packet.ContentLength = int.Parse(value)) },
+            };
+        }
+
+        static void CSeqSetter(SipPacket packet, string value)
+        {
+            string[] items = value.Split(SPACE, 2, StringSplitOptions.RemoveEmptyEntries);
+            if (items.Length != 2)
+                throw new ArgumentException();
+
+            if (!int.TryParse(items[0], out var cseq))
+                throw new ArgumentException();
+
+            if (!Enum.TryParse<SipMethod>(items[1], out var method))
+                throw new ArgumentException();
+
+            packet.Method = method;
+            packet.CSeq = cseq;
+        }
+
+        public SipPacket SetContent(string type, byte[] content)
+        {
+            ContentType = type;
+            ContentLength = content.Length;
+            Content = content;
+
+            return this;
+        }
 
         public bool TryUnpack(byte[] buffer, ref int offset)
         {
@@ -241,19 +325,112 @@
 					Subject: aaaaa<CRLF>
 					<TAB or SP>aaaaa<CRLF>
 			*/
-            throw new NotImplementedException();
+
+            var tmpOffset = offset;
+            var count = buffer.Length - tmpOffset;
+            if (count <= 0)
+                return false;
+
+            string[] message = Encoding.GetString(buffer, tmpOffset, count).Split(CRLF, StringSplitOptions.RemoveEmptyEntries);
+
+            if (message.Length == 0)
+                return false;
+
+            if (!TryStartLineParse(message[0], ref tmpOffset))
+                return false;
+
+            if (!TryHeaderParse(message, ref tmpOffset))
+                return false;
+
+            if (ContentLength > 0)
+            {
+                if (ContentLength > count - tmpOffset)
+                    return false;
+
+                Content = new ArraySegment<byte>(buffer, tmpOffset, ContentLength);
+                tmpOffset += ContentLength;
+            }
+
+            offset = tmpOffset;
+            return true;
         }
 
         public void Pack(ref byte[] buffer, ref int offset)
         {
-            throw new NotImplementedException();
-        }
+            byte[] message = Encoding.GetBytes(StartLineBuild() + HeaderBuild() + SPACE + CRLF);
 
-        public int GetByteLength() => PACKAGE_LENGTH;
+            BufferBits.Prepare(ref buffer, offset, (message.Length + ContentLength) * 8);
+            BufferBits.SetBytes(buffer, message, ref offset);
+            BufferBits.SetBytes(buffer, Content.Array, ref offset);
+        }
 
         public ArraySegment<byte> Pack()
         {
-            throw new NotImplementedException();
+            var buffer = new byte[0];
+            var offset = 0;
+
+            Pack(ref buffer, ref offset);
+            return new ArraySegment<byte>(buffer, 0, offset);
+        }
+
+        private string StartLineBuild()
+        {
+            return (Status != null ? $"{VERSION} {(int)Status.Value} {Status}" : $"{Method} {Request} {VERSION}") + CRLF;
+        }
+
+        private string HeaderBuild()
+        {
+            string header = string.Empty;
+
+            foreach (KeyValuePair<string, Property> item in _properties)
+                header += $"{item.Key}: {item.Value}" + CRLF;
+
+            return header;
+        }
+
+        private bool TryStartLineParse(string message, ref int offset)
+        {
+            string[] items = message.TrimEnd().Split(SPACE, StringSplitOptions.RemoveEmptyEntries);
+            if (items.Length != 3)
+                return false;
+
+            if (items[0] == VERSION && int.TryParse(items[^2], out var status) && Enum.IsDefined(typeof(SipStatus), status))
+            {
+                Status = (SipStatus)status;
+            }
+            else if (items[^1] == VERSION && Enum.TryParse(items[0], true, out SipMethod method))
+            {
+                Request = SipUri.Parse(items[1]);
+                Method = method;
+            }
+            else
+            {
+                return false;
+            }
+
+            offset += Encoding.GetByteCount(message + CRLF);
+
+            return true;
+        }
+
+        private bool TryHeaderParse(string[] message, ref int offset)
+        {
+            for (int i = 1; i < message.Length; i++)
+            {
+                offset += Encoding.GetByteCount(message[i] + CRLF);
+
+                if (message[i] == SPACE)
+                    break;
+
+                var items = message[i].TrimEnd().Split(SEPARATOR, 2, StringSplitOptions.RemoveEmptyEntries);
+                if (items.Length != 2)
+                    return false;
+
+                if (_properties.TryGetValue(items[0], out var property))
+                    property.Set(this, items[1].TrimStart());
+            }
+
+            return true;
         }
 
         #endregion Methods

@@ -146,7 +146,6 @@
 
         public void Pack(ref byte[] buffer, ref int offset)
         {
-
             BufferBits.Prepare(ref buffer, offset, GetByteLength() * 8);
 
             BufferBits.SetByte(Version, buffer, ref offset, 2);

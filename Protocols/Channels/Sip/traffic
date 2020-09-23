@@ -119,7 +119,15 @@ a=fmtp:101 0-16
 a=ptime:20 
 a=sendrecv 
 
- 
+ACK sip:31337@192.168.56.105:5060 SIP/2.0 
+Via: SIP/2.0/UDP 192.168.56.1:5061;branch=z9hG4bKPj3e715762683b4c95b5609f613dcee8bf
+Max-Forwards: 70 
+From: <sip:115@192.168.56.105>;tag=605b7a20532f43d68da33700ba184404 
+To: <sip:31337@192.168.56.105>;tag=as56c20534 
+Call-ID: 1ae11be73a3549a39726dc9cf974d6e6 
+CSeq: 16564 ACK 
+Content-Length:  0 
+  
 
  
 

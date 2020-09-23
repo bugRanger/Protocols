@@ -6,8 +6,6 @@
     {
         #region Methods
 
-        public int GetByteLength();
-
         bool TryUnpack(byte[] buffer, ref int offset);
 
         void Pack(ref byte[] buffer, ref int offset);
