@@ -363,6 +363,8 @@
             BufferBits.SetBytes(buffer, message, ref offset);
             if (Content != null)
                 BufferBits.SetBytes(buffer, Content.Array, ref offset);
+
+            offset /= 8;
         }
 
         public ArraySegment<byte> Pack()

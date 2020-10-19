@@ -178,14 +178,14 @@ namespace Protocols.Tests
         public void PackTest() 
         {
             // Arrage
-            var buffer = new byte[0];
+            var bytes = new byte[0];
             var offset = 0;
 
             // Act
-            _packet.Pack(ref buffer, ref offset);
+            _packet.Pack(ref bytes, ref offset);
 
             // Assert
-            Assert.AreEqual(buffer.Length * 8, offset);
+            Assert.AreEqual(offset, bytes.Length);
         }
 
         #endregion Methods
