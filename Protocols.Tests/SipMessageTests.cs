@@ -126,13 +126,14 @@ namespace Protocols.Tests
         //[TestCase(RxOk, SipMethod.INVITE, SipStatus.Ok)]
         //[TestCase(TxAck, SipMethod.ACK, null)]
 
-        [TestCase(TxInvite, 0)]
-        [TestCase(RxTrying, 0)]
-        [TestCase(RxOk, 0)]
-        [TestCase(TxAck, 0)]
-        public void UnpackTest(string message, int offset)
+        [TestCase(TxInvite)]
+        [TestCase(RxTrying)]
+        [TestCase(RxOk)]
+        [TestCase(TxAck)]
+        public void UnpackTest(string message)
         {
             // Arrage
+            var offset = 0;
             byte[] bytes = Encoding.ASCII.GetBytes(message);
 
             // Act
@@ -185,6 +186,7 @@ namespace Protocols.Tests
             _packet.Pack(ref bytes, ref offset);
 
             // Assert
+            Assert.AreNotEqual(offset, 0);
             Assert.AreEqual(offset, bytes.Length);
         }
 
