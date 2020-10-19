@@ -361,7 +361,8 @@
 
             BufferBits.Prepare(ref buffer, offset, (message.Length + ContentLength) * 8);
             BufferBits.SetBytes(buffer, message, ref offset);
-            BufferBits.SetBytes(buffer, Content.Array, ref offset);
+            if (Content != null)
+                BufferBits.SetBytes(buffer, Content.Array, ref offset);
         }
 
         public ArraySegment<byte> Pack()

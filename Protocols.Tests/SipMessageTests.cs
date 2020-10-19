@@ -128,7 +128,7 @@ namespace Protocols.Tests
         [TestCase(RxTrying)]
         [TestCase(RxOk)]
         [TestCase(TxAck)]
-        public void UnpackRequestTest(string message)
+        public void UnpackTest(string message)
         {
             // Arrage
             var offset = 0;
@@ -144,6 +144,20 @@ namespace Protocols.Tests
             Assert.AreEqual(_packet.CSeq, _cseq);
             Assert.AreEqual(_packet.From.Address, _from.Address);
             Assert.AreEqual(_packet.To.Address, _to.Address);
+        }
+
+        [Test]
+        public void PackTest() 
+        {
+            // Arrage
+            var buffer = new byte[0];
+            var offset = 0;
+
+            // Act
+            _packet.Pack(ref buffer, ref offset);
+
+            // Assert
+            Assert.AreEqual(buffer.Length * 8, offset);
         }
 
         #endregion Methods
