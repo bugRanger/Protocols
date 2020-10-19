@@ -333,7 +333,7 @@
 
             string[] message = Encoding.GetString(buffer, tmpOffset, count).Split(CRLF, StringSplitOptions.RemoveEmptyEntries);
 
-            if (message.Length == 0)
+            if (message.Length <= 1)
                 return false;
 
             if (!TryStartLineParse(message[0], ref tmpOffset))
@@ -421,7 +421,7 @@
                 offset += Encoding.GetByteCount(message[i] + CRLF);
 
                 if (message[i] == SPACE)
-                    break;
+                    return true;
 
                 var items = message[i].TrimEnd().Split(SEPARATOR, 2, StringSplitOptions.RemoveEmptyEntries);
                 if (items.Length != 2)
@@ -429,9 +429,10 @@
 
                 if (_properties.TryGetValue(items[0], out var property))
                     property.Set(this, items[1].TrimStart());
+                // TODO Else cached for pack method.
             }
 
-            return true;
+            return false;
         }
 
         #endregion Methods

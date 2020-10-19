@@ -50,7 +50,8 @@ namespace Protocols.Tests
             "Supported: replaces, timer \r\n" +
             "Session-Expires: 1800;refresher=uas \r\n" +
             "Contact: <sip:31337@192.168.56.105:5060> \r\n" +
-            "Content-Length: 0 \r\n";
+            "Content-Length: 0 \r\n" +
+            " \r\n";
 
         private const string RxOk =
             "SIP/2.0 200 OK \r\n" +
@@ -89,7 +90,8 @@ namespace Protocols.Tests
             "To: <sip:31337@192.168.56.105>;tag=as56ee551e \r\n" +
             "Call-ID: c7e6ad40e49e44d4b665d621c4627149 \r\n" +
             "CSeq: 16564 ACK \r\n" +
-            "Content-Length:  0 \r\n";
+            "Content-Length:  0 \r\n" +
+            " \r\n";
 
         #endregion Constants
 
@@ -124,26 +126,52 @@ namespace Protocols.Tests
         //[TestCase(RxOk, SipMethod.INVITE, SipStatus.Ok)]
         //[TestCase(TxAck, SipMethod.ACK, null)]
 
-        [TestCase(TxInvite)]
-        [TestCase(RxTrying)]
-        [TestCase(RxOk)]
-        [TestCase(TxAck)]
-        public void UnpackTest(string message)
+        [TestCase(TxInvite, 0)]
+        [TestCase(RxTrying, 0)]
+        [TestCase(RxOk, 0)]
+        [TestCase(TxAck, 0)]
+        public void UnpackTest(string message, int offset)
         {
             // Arrage
-            var offset = 0;
+            byte[] bytes = Encoding.ASCII.GetBytes(message);
 
             // Act
-            bool result = _packet.TryUnpack(Encoding.ASCII.GetBytes(message), ref offset);
+            bool result = _packet.TryUnpack(bytes, ref offset);
 
             // TODO Add more asserts.
             // Assert
             Assert.IsTrue(result);
-            Assert.AreEqual(offset, Encoding.ASCII.GetByteCount(message));
+            Assert.AreEqual(offset, bytes.Length);
             Assert.AreEqual(_packet.CallId, _callId);
             Assert.AreEqual(_packet.CSeq, _cseq);
             Assert.AreEqual(_packet.From.Address, _from.Address);
             Assert.AreEqual(_packet.To.Address, _to.Address);
+        }
+
+        [TestCase(TxInvite)]
+        [TestCase(RxTrying)]
+        [TestCase(RxOk)]
+        [TestCase(TxAck)]
+        public void UnpackWithOffsetTest(string message) 
+        {
+            // Arrage
+            var offset = 0;
+            var result = false;
+            var concat = string.Empty;
+            var lines = message.Split("\r\n");
+
+            // Act
+            foreach (var item in lines)
+            {
+                concat += item + "\r\n";
+                result = _packet.TryUnpack(Encoding.ASCII.GetBytes(concat), ref offset);
+                if (result)
+                    break;
+            }
+
+            // Assert
+            Assert.IsTrue(result);
+            Assert.AreEqual(offset, Encoding.ASCII.GetByteCount(message));
         }
 
         [Test]
