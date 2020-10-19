@@ -108,7 +108,7 @@
             => 
             PACKAGE_LENGTH + 
             CsrcCount * 4 + 
-            Extension.GetByteLength() + 
+            (HasExtension ? Extension.GetByteLength() : 0) + 
             (Payload?.Length ?? 0);
 
         public bool TryUnpack(byte[] buffer, ref int offset)
