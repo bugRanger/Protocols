@@ -12,6 +12,7 @@
     // ACK
     public enum SipMethod
     {
+        UNDEFINENED,
         REGISTER,
         OPTIONS,
         INVITE,

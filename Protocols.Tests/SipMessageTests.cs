@@ -90,7 +90,20 @@ namespace Protocols.Tests
             "To: <sip:31337@192.168.56.105>;tag=as56ee551e \r\n" +
             "Call-ID: c7e6ad40e49e44d4b665d621c4627149 \r\n" +
             "CSeq: 16564 ACK \r\n" +
-            "Content-Length:  0 \r\n" +
+            "Content-Length: 0 \r\n" +
+            " \r\n";
+
+        private const string TxBadEvent =
+            "SIP/2.0 489 Bad Event \r\n" +
+            "Via: SIP/2.0/UDP 192.168.56.1:5061;branch=z9hG4bKPjd8e9159e9f6241a6868738b214679336;received=192.168.56.1 \r\n" +
+            "From: <sip:115@192.168.56.105>;tag=94b1fa2000614ec090b2c45af2d4cee1 \r\n" +
+            "To: <sip:31337@192.168.56.105>;tag=as56ee551e \r\n" +
+            "Call-ID: c7e6ad40e49e44d4b665d621c4627149 \r\n" +
+            "CSeq: 48076 PUBLISH \r\n" +
+            "Server: Asterisk PBX 11.7.0~dfsg-1ubuntu1 \r\n" +
+            "Allow: INVITE, ACK, CANCEL, OPTIONS, BYE, REFER, SUBSCRIBE, NOTIFY, INFO, PUBLISH \r\n" +
+            "Supported: replaces, timer \r\n" +
+            "Content-Length: 0 \r\n" +
             " \r\n";
 
         #endregion Constants
@@ -127,9 +140,10 @@ namespace Protocols.Tests
         //[TestCase(TxAck, SipMethod.ACK, null)]
 
         [TestCase(TxInvite)]
-        [TestCase(RxTrying)]
         [TestCase(RxOk)]
+        [TestCase(RxTrying)]
         [TestCase(TxAck)]
+        [TestCase(TxBadEvent)]
         public void UnpackTest(string message)
         {
             // Arrage
@@ -153,7 +167,8 @@ namespace Protocols.Tests
         [TestCase(RxTrying)]
         [TestCase(RxOk)]
         [TestCase(TxAck)]
-        public void UnpackWithOffsetTest(string message) 
+        [TestCase(TxBadEvent)]
+        public void UnpackWithOffsetTest(string message)
         {
             // Arrage
             var offset = 0;
@@ -175,19 +190,27 @@ namespace Protocols.Tests
             Assert.AreEqual(offset, Encoding.ASCII.GetByteCount(message));
         }
 
-        [Test]
-        public void PackTest() 
+        [TestCase(TxInvite)]
+        [TestCase(RxTrying)]
+        [TestCase(RxOk)]
+        [TestCase(TxAck)]
+        [TestCase(TxBadEvent)]
+        public void PackTest(string message)
         {
             // Arrage
-            var bytes = new byte[0];
             var offset = 0;
+            var bytes = new byte[0];
+            var lines = message.Split("\r\n");
 
             // Act
+            UnpackTest(message);
             _packet.Pack(ref bytes, ref offset);
+            var newLine = Encoding.ASCII.GetString(bytes).Split("\r\n");
 
             // Assert
             Assert.AreNotEqual(offset, 0);
             Assert.AreEqual(offset, bytes.Length);
+            CollectionAssert.AreEquivalent(lines, newLine);
         }
 
         #endregion Methods

@@ -206,15 +206,28 @@
 
         private class Property
         {
+            #region Properties
+
             public Func<SipPacket, string> Get { get; }
 
             public Action<SipPacket, string> Set { get; }
 
-            public Property(Func<SipPacket, string> getter, Action<SipPacket, string> settter) 
+            public Func<SipPacket, bool> Available { get; }
+
+            #endregion Properties
+
+            #region Constructors
+
+            public Property(Func<SipPacket, string> getter, Action<SipPacket, string> settter) : this(getter, settter, (packet) => true) { }
+
+            public Property(Func<SipPacket, string> getter, Action<SipPacket, string> settter, Func<SipPacket, bool> available) 
             {
                 Get = getter;
                 Set = settter;
+                Available = available;
             }
+
+            #endregion Constructors
         }
 
         #endregion Classes
@@ -227,10 +240,15 @@
         private const string VERSION = "SIP/2.0";
 
         private static Encoding Encoding = Encoding.ASCII;
-
         private static readonly Dictionary<string, Property> _properties;
 
         #endregion Constants
+
+        #region Fields
+
+        private List<string> _cached;
+
+        #endregion Fields
 
         #region Property
 
@@ -258,38 +276,31 @@
 
         #endregion Property
 
-        #region Methods
+        #region Constructors
 
         static SipPacket()
         {
             // TODO: Impl others attributes.
             _properties = new Dictionary<string, Property>(StringComparer.InvariantCultureIgnoreCase)
             {
-                { "From", new Property((packet) => packet.From.ToString(), (packet, value) => packet.From = SipUri.Parse(value)) },
-                { "To", new Property((packet) => packet.To.ToString(), (packet, value) => packet.To = SipUri.Parse(value)) },
-                { "Contact", new Property((packet) => packet.Concact.ToString(), (packet, value) => packet.Concact = SipUri.Parse(value)) },
-                { "CSeq", new Property((packet) => packet.CSeq.ToString(), CSeqSetter) },
+                { "From", new Property((packet) => packet.From.Pack(true), (packet, value) => packet.From = SipUri.Parse(value)) },
+                { "To", new Property((packet) => packet.To.Pack(true), (packet, value) => packet.To = SipUri.Parse(value)) },
+                { "CSeq", new Property(CSeqGdetter, CSeqSetter) },
                 { "Call-ID", new Property((packet) => packet.CallId, (packet, value) => packet.CallId = value) },
-                { "Content-Type", new Property((packet) => packet.ContentType, (packet, value) => packet.ContentType = value) },
+                { "Contact", new Property((packet) => packet.Concact.Pack(true), (packet, value) => packet.Concact = SipUri.Parse(value), (packet) => packet.Method == SipMethod.INVITE) },
+                { "Content-Type", new Property((packet) => packet.ContentType, (packet, value) => packet.ContentType = value, (packet) => packet.ContentLength > 0) },
                 { "Content-Length", new Property((packet) => packet.ContentLength.ToString(), (packet, value) => packet.ContentLength = int.Parse(value)) },
             };
         }
 
-        static void CSeqSetter(SipPacket packet, string value)
+        public SipPacket() 
         {
-            string[] items = value.Split(SPACE, 2, StringSplitOptions.RemoveEmptyEntries);
-            if (items.Length != 2)
-                throw new ArgumentException();
-
-            if (!int.TryParse(items[0], out var cseq))
-                throw new ArgumentException();
-
-            if (!Enum.TryParse<SipMethod>(items[1], out var method))
-                throw new ArgumentException();
-
-            packet.Method = method;
-            packet.CSeq = cseq;
+            _cached = new List<string>();
         }
+
+        #endregion Constructors
+
+        #region Methods
 
         public SipPacket SetContent(string type, byte[] content)
         {
@@ -357,12 +368,13 @@
 
         public void Pack(ref byte[] buffer, ref int offset)
         {
-            byte[] message = Encoding.GetBytes(StartLineBuild() + HeaderBuild() + SPACE + CRLF);
+            byte[] message = Encoding.GetBytes(StartLineBuild() + HeaderBuild());
 
             BufferBits.Prepare(ref buffer, offset, (message.Length + ContentLength) * 8);
-            BufferBits.SetBytes(buffer, message, ref offset);
+
+            BufferBits.SetBytes(message, buffer, ref offset);
             if (Content != null)
-                BufferBits.SetBytes(buffer, Content.Array, ref offset);
+                BufferBits.SetBytes(Content.ToArray(), buffer, ref offset);
 
             offset /= 8;
         }
@@ -378,22 +390,26 @@
 
         private string StartLineBuild()
         {
-            return (Status != null ? $"{VERSION} {(int)Status.Value} {Status}" : $"{Method} {Request} {VERSION}") + CRLF;
+            return (Status != null ? $"{VERSION} {(int)Status.Value} {Status}" : $"{Method} {Request.Pack(false)} {VERSION}") + SPACE + CRLF;
         }
 
         private string HeaderBuild()
         {
             string header = string.Empty;
 
-            foreach (KeyValuePair<string, Property> item in _properties)
-                header += $"{item.Key}: {item.Value}" + CRLF;
+            foreach (var item in _cached)
+                header += item + CRLF;
 
-            return header;
+            foreach (KeyValuePair<string, Property> item in _properties)
+                if (item.Value.Available(this))
+                    header += $"{item.Key}: {item.Value.Get(this)}" + SPACE + CRLF;
+
+            return header + SPACE + CRLF;
         }
 
         private bool TryStartLineParse(string message, ref int offset)
         {
-            string[] items = message.TrimEnd().Split(SPACE, StringSplitOptions.RemoveEmptyEntries);
+            string[] items = message.TrimEnd().Split(SPACE, 3, StringSplitOptions.RemoveEmptyEntries);
             if (items.Length != 3)
                 return false;
 
@@ -418,6 +434,8 @@
 
         private bool TryHeaderParse(string[] message, ref int offset)
         {
+            _cached.Clear();
+
             for (int i = 1; i < message.Length; i++)
             {
                 offset += Encoding.GetByteCount(message[i] + CRLF);
@@ -429,12 +447,44 @@
                 if (items.Length != 2)
                     return false;
 
-                if (_properties.TryGetValue(items[0], out var property))
+                if (!_properties.TryGetValue(items[0], out var property))
+                {
+                    _cached.Add(message[i]);
+                    continue;
+                }
+
+                try
+                {
                     property.Set(this, items[1].TrimStart());
-                // TODO Else cached for pack method.
+                }
+                catch
+                {
+                    // TODO Handle error.
+                    //throw new ArgumentException(items[0], ex);
+                }
             }
 
             return false;
+        }
+
+        private static void CSeqSetter(SipPacket packet, string value)
+        {
+            string[] items = value.Split(SPACE, 2, StringSplitOptions.RemoveEmptyEntries);
+            if (items.Length != 2)
+                throw new ArgumentException();
+
+            if (!int.TryParse(items[0], out var cseq))
+                throw new ArgumentException();
+
+            Enum.TryParse<SipMethod>(items[1], out var method);
+
+            packet.Method = method;
+            packet.CSeq = cseq;
+        }
+
+        private static string CSeqGdetter(SipPacket packet)
+        {
+            return packet.CSeq + SPACE + packet.Method;
         }
 
         #endregion Methods

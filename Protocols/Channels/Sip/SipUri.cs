@@ -7,6 +7,8 @@
         #region Constants
 
         private const string START = "sip:";
+        private const string CARRAGE_L = "<";
+        private const string CARRAGE_R = ">";
         private const string TAG = ";tag=";
         private const string SEPARATOR = "@";
 
@@ -46,7 +48,13 @@
 
             var uri = new SipUri();
 
-            string[] items = uid.Substring(offset).Split(TAG, 2, StringSplitOptions.RemoveEmptyEntries);
+            string[] items = uid
+                .Substring(offset)
+                .Replace(START, string.Empty)
+                .Replace(CARRAGE_L, string.Empty)
+                .Replace(CARRAGE_R, string.Empty)
+                .Split(TAG, 2, StringSplitOptions.RemoveEmptyEntries);
+
             if (items.Length == 2)
             {
                 uri.Tag = items[1];
@@ -57,16 +65,23 @@
             if(items.Length != 2)
                 throw new ArgumentException();
 
-            uri.Address = items[0].Replace(START, string.Empty);
-            uri.Domain = items[1][0..^1];
+            uri.Address = items[0];
+            uri.Domain = items[1];
 
             return uri;
         }
 
-        public override string ToString()
+        public string Pack(bool isCarriage)
         {
-            // TODO Aliace name.
-            return $"{START}{Address}{SEPARATOR}{Domain}{(!string.IsNullOrWhiteSpace(Tag) ? $"{TAG}{Tag}" : string.Empty)}";
+            string uri = $"{START}{Address}{SEPARATOR}{Domain}";
+
+            if (isCarriage)
+                uri = $"<{uri}>";
+
+            if (!string.IsNullOrWhiteSpace(Tag))
+                uri += $"{TAG}{Tag}";
+
+            return uri;
         }
 
         #endregion Methods

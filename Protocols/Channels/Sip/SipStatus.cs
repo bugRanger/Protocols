@@ -71,7 +71,7 @@
 
         Trying = 100,
 
-        Ok = 200,
+        OK = 200,
 
         BadEvent = 489,
     }
