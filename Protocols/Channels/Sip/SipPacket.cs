@@ -6,6 +6,8 @@
 
     using Framework.Common;
 
+    using Protocols.Extensions;
+
     // ==============================================================
     //          https://tools.ietf.org/html/rfc3261
     // ==============================================================
@@ -390,7 +392,18 @@
 
         private string StartLineBuild()
         {
-            return (Status != null ? $"{VERSION} {(int)Status.Value} {Status}" : $"{Method} {Request.Pack(false)} {VERSION}") + SPACE + CRLF;
+            var result = string.Empty;
+
+            if (Status != null)
+            {
+                result = $"{VERSION} {(int)Status.Value} {((SipStatus)Status).GetDescription()}";
+            }
+            else
+            {
+                result = $"{Method} {Request.Pack(false)} {VERSION}";
+            }
+
+            return result + SPACE + CRLF;
         }
 
         private string HeaderBuild()

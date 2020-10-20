@@ -1,6 +1,7 @@
 ﻿namespace Protocols.Channels.Sip
 {
     using System;
+    using System.ComponentModel;
 
     // =========================================================
     // <MESSAGE_STATUS_TYPE>
@@ -67,12 +68,13 @@
     //    /   "606"  ;  Not Acceptable
     public enum SipStatus
     {
-        None = -1,
+        UNDEFINENED,
 
         Trying = 100,
 
         OK = 200,
 
+        [Description("Bad Event")]
         BadEvent = 489,
     }
 }

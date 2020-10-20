@@ -99,7 +99,7 @@ namespace Protocols.Tests
             "From: <sip:115@192.168.56.105>;tag=94b1fa2000614ec090b2c45af2d4cee1 \r\n" +
             "To: <sip:31337@192.168.56.105>;tag=as56ee551e \r\n" +
             "Call-ID: c7e6ad40e49e44d4b665d621c4627149 \r\n" +
-            "CSeq: 48076 PUBLISH \r\n" +
+            "CSeq: 16564 REGISTER \r\n" +
             "Server: Asterisk PBX 11.7.0~dfsg-1ubuntu1 \r\n" +
             "Allow: INVITE, ACK, CANCEL, OPTIONS, BYE, REFER, SUBSCRIBE, NOTIFY, INFO, PUBLISH \r\n" +
             "Supported: replaces, timer \r\n" +
