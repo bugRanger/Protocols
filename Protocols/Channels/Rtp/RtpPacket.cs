@@ -59,7 +59,7 @@
 
         public bool Marker { get; set; }
 
-        public byte PayloadType { get; set; }
+        public byte PayloadType { get; private set; }
 
         public ushort SequenceNumber { get; set; }
 
@@ -71,7 +71,7 @@
 
         public RtpExtension Extension { get; }
 
-        public byte[] Payload { get; private set; }
+        public ArraySegment<byte> Payload { get; private set; }
 
         #endregion Properties
 
@@ -109,7 +109,13 @@
             PACKAGE_LENGTH + 
             CsrcCount * 4 + 
             (HasExtension ? Extension.GetByteLength() : 0) + 
-            (Payload?.Length ?? 0);
+            Payload.Count;
+
+        public void SetPayload(byte payloadType, ArraySegment<byte> payload) 
+        {
+            PayloadType = payloadType;
+            Payload = payload;
+        }
 
         public bool TryUnpack(byte[] buffer, ref int offset)
         {
@@ -139,7 +145,10 @@
             if (HasExtension && !Extension.TryUnpack(buffer, ref offset))
                 return false;
 
-            Payload = BufferBits.GetBytes(buffer, ref offset, buffer.Length - offset);
+            offset /= 8;
+
+            Payload = new ArraySegment<byte>(buffer, offset, buffer.Length - offset);
+            offset += Payload.Count;
 
             return true;
         }
@@ -164,7 +173,9 @@
                 Extension.Pack(ref buffer, ref offset);
 
             var payloadLength = buffer.Length - offset - (HasPadding ? buffer[buffer.Length] : 0);
-            BufferBits.SetBytes(Payload, buffer, ref offset, payloadLength);
+            BufferBits.SetBytes(Payload.ToArray(), buffer, ref offset, payloadLength);
+
+            offset /= 8;
         }
 
         public ArraySegment<byte> Pack()

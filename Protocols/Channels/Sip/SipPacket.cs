@@ -304,10 +304,10 @@
 
         #region Methods
 
-        public SipPacket SetContent(string type, byte[] content)
+        public SipPacket SetContent(string type, ArraySegment<byte> content)
         {
             ContentType = type;
-            ContentLength = content.Length;
+            ContentLength = content.Count;
             Content = content;
 
             return this;
@@ -375,7 +375,7 @@
             BufferBits.Prepare(ref buffer, offset, (message.Length + ContentLength) * 8);
 
             BufferBits.SetBytes(message, buffer, ref offset);
-            if (Content != null)
+            if (ContentLength > 0)
                 BufferBits.SetBytes(Content.ToArray(), buffer, ref offset);
 
             offset /= 8;
