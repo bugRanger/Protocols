@@ -372,13 +372,11 @@
         {
             byte[] message = Encoding.GetBytes(StartLineBuild() + HeaderBuild());
 
-            BufferBits.Prepare(ref buffer, offset, (message.Length + ContentLength) * 8);
+            BufferBits.Prepare(ref buffer, offset, (message.Length + ContentLength));
 
             BufferBits.SetBytes(message, buffer, ref offset);
             if (ContentLength > 0)
                 BufferBits.SetBytes(Content.ToArray(), buffer, ref offset);
-
-            offset /= 8;
         }
 
         public ArraySegment<byte> Pack()

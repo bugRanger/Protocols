@@ -124,17 +124,21 @@
             if (bufferSpace < GetByteLength())
                 return false;
 
-            Version = BufferBits.GetByte(buffer, ref offset, 2);
+            var bitOffset = 0;
+            CsrcCount = BufferBits.GetByte(buffer, offset, ref bitOffset, 4);
+            HasExtension = BufferBits.GetBool(buffer, offset, ref bitOffset);
+            HasPadding = BufferBits.GetBool(buffer, offset, ref bitOffset);
+            Version = BufferBits.GetByte(buffer, ref offset, ref bitOffset, 2);
             if (Version != DEFAULT_VERSION_VALUE)
                 return false;
 
-            HasPadding = BufferBits.GetBool(buffer, ref offset);
-            HasExtension = BufferBits.GetBool(buffer, ref offset);
-            CsrcCount = BufferBits.GetByte(buffer, ref offset, 4);
-            Marker = BufferBits.GetBool(buffer, ref offset);
-            PayloadType = BufferBits.GetByte(buffer, ref offset, 7);
+            bitOffset = 0;
+            PayloadType = BufferBits.GetByte(buffer, offset, ref bitOffset, 7);
+            Marker = BufferBits.GetBool(buffer, ref offset, ref bitOffset);
+
             SequenceNumber = BufferBits.GetUInt16(buffer, ref offset);
             TimeStamp = BufferBits.GetUInt32(buffer, ref offset);
+            Ssrc = BufferBits.GetUInt32(buffer, ref offset);
 
             if (bufferSpace < GetByteLength())
                 return false;
@@ -145,24 +149,25 @@
             if (HasExtension && !Extension.TryUnpack(buffer, ref offset))
                 return false;
 
-            offset /= 8;
-
-            Payload = new ArraySegment<byte>(buffer, offset, buffer.Length - offset);
-            offset += Payload.Count;
+            Payload = BufferBits.GetBytes(buffer, ref offset, buffer.Length - offset);
 
             return true;
         }
 
         public void Pack(ref byte[] buffer, ref int offset)
         {
-            BufferBits.Prepare(ref buffer, offset, GetByteLength() * 8);
+            BufferBits.Prepare(ref buffer, offset, GetByteLength());
 
-            BufferBits.SetByte(Version, buffer, ref offset, 2);
-            BufferBits.SetBool(HasPadding, buffer, ref offset);
-            BufferBits.SetBool(HasExtension, buffer, ref offset);
-            BufferBits.SetByte(CsrcCount, buffer, ref offset, 4);
-            BufferBits.SetBool(Marker, buffer, ref offset);
-            BufferBits.SetByte(PayloadType, buffer, ref offset, 7);
+            var bitOffset = 0;
+            BufferBits.SetByte(CsrcCount, buffer, offset, ref bitOffset, 4);
+            BufferBits.SetBool(HasExtension, buffer, offset, ref bitOffset);
+            BufferBits.SetBool(HasPadding, buffer, offset, ref bitOffset);
+            BufferBits.SetByte(Version, buffer, ref offset, ref bitOffset, 2);
+            
+            bitOffset = 0;
+            BufferBits.SetByte(PayloadType, buffer, offset, ref bitOffset, 7);
+            BufferBits.SetBool(Marker, buffer, ref offset, ref bitOffset);
+
             BufferBits.SetUInt16(SequenceNumber, buffer, ref offset);
             BufferBits.SetUInt32(TimeStamp, buffer, ref offset);
             BufferBits.SetUInt32(Ssrc, buffer, ref offset);
@@ -171,11 +176,9 @@
 
             if (HasExtension)
                 Extension.Pack(ref buffer, ref offset);
-
-            var payloadLength = buffer.Length - offset - (HasPadding ? buffer[buffer.Length] : 0);
-            BufferBits.SetBytes(Payload.ToArray(), buffer, ref offset, payloadLength);
-
-            offset /= 8;
+            
+            if (Payload.Count > 0)
+                BufferBits.SetBytes(Payload.ToArray(), buffer, ref offset);
         }
 
         public ArraySegment<byte> Pack()
