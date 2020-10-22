@@ -73,6 +73,8 @@
 
         public ArraySegment<byte> Payload { get; private set; }
 
+        public byte PaddingCount { get; private set; }
+
         #endregion Properties
 
         #region Constructors
@@ -108,13 +110,15 @@
             => 
             PACKAGE_LENGTH + 
             CsrcCount * 4 + 
+            (HasPadding ? PaddingCount : 0) +
             (HasExtension ? Extension.GetByteLength() : 0) + 
             Payload.Count;
 
-        public void SetPayload(byte payloadType, ArraySegment<byte> payload) 
+        public void SetPayload(byte payloadType, ArraySegment<byte> payload, byte padding = 0) 
         {
             PayloadType = payloadType;
             Payload = payload;
+            PaddingCount = padding;
         }
 
         public bool TryUnpack(byte[] buffer, ref int offset)
@@ -149,7 +153,19 @@
             if (HasExtension && !Extension.TryUnpack(buffer, ref offset))
                 return false;
 
-            Payload = BufferBits.GetBytes(buffer, ref offset, buffer.Length - offset);
+            var payloadCount = buffer.Length - offset;
+            if (HasPadding)
+            {
+                var remain = buffer.Length - 1;
+                PaddingCount = BufferBits.GetByte(buffer, ref remain);
+                if (PaddingCount > 0)
+                    payloadCount -= PaddingCount;
+            }
+
+            Payload = BufferBits.GetBytes(buffer, ref offset, payloadCount);
+
+            if (HasPadding)
+                offset += PaddingCount;
 
             return true;
         }
@@ -179,6 +195,12 @@
             
             if (Payload.Count > 0)
                 BufferBits.SetBytes(Payload.ToArray(), buffer, ref offset);
+
+            if (HasPadding && PaddingCount > 0)
+            {
+                offset += PaddingCount - 1;
+                BufferBits.SetByte(PaddingCount, buffer, ref offset);
+            }
         }
 
         public ArraySegment<byte> Pack()

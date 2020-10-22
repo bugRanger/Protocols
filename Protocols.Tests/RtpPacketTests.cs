@@ -15,7 +15,7 @@
 
         private static byte[] _bytes = 
         {
-            0x80, 0x81, 0x20, 0x21, 0x12, 0xbe, 0x71, 0x4a,
+            0xA0, 0x81, 0x20, 0x21, 0x12, 0xbe, 0x71, 0x4a,
             0x20, 0x00, 0x00, 0x02, 0xf0, 0x6e, 0x6c, 0xdf,
             0xe2, 0x62, 0x67, 0x6f, 0x78, 0xee, 0x6b, 0xf5,
             0xd5, 0xed, 0x6a, 0xeb, 0xf3, 0x6f, 0x7a, 0x5f,
@@ -36,7 +36,7 @@
             0x60, 0x6e, 0x63, 0x65, 0x7c, 0x78, 0xfc, 0xe3,
             0xd8, 0xd1, 0xd3, 0xd8, 0xea, 0x5b, 0x4e, 0x4b,
             0x4b, 0x4e, 0x52, 0x5d, 0xfc, 0xda, 0xce, 0xce,
-            0xd3, 0xe7, 0x7d, 0xec
+            0xd3, 0xe7, 0x7d, 0xec, 0x00, 0x00, 0x00, 0x03,
         };
 
 
@@ -48,6 +48,7 @@
         private ushort _secno;
         private uint _ssrc;
         private byte _pt;
+        private byte _padding;
         private uint _timestamp;
         private ArraySegment<byte> _payload;
 
@@ -64,8 +65,9 @@
             _secno = 8225;
             _ssrc = 0x20000002;
             _pt = 1;
+            _padding = 3;
             _timestamp = 314470730;
-            _payload = new ArraySegment<byte>(_bytes, HEADER_SIZE, _bytes.Length - HEADER_SIZE);
+            _payload = new ArraySegment<byte>(_bytes, HEADER_SIZE, _bytes.Length - HEADER_SIZE - _padding);
 
             _packet = new RtpPacket();
         }
@@ -83,11 +85,12 @@
             Assert.IsTrue(result);
             Assert.AreEqual(offset, _bytes.Length);
             Assert.AreEqual(_packet.Version, _version);
-            Assert.AreEqual(_packet.HasPadding, false);
+            Assert.AreEqual(_packet.HasPadding, true);
             Assert.AreEqual(_packet.HasExtension, false);
             Assert.AreEqual(_packet.CsrcCount, 0);
             Assert.AreEqual(_packet.Marker, true);
             Assert.AreEqual(_packet.PayloadType, _pt);
+            Assert.AreEqual(_packet.PaddingCount, _padding);
             Assert.AreEqual(_packet.SequenceNumber, _secno);
             Assert.AreEqual(_packet.TimeStamp, _timestamp);
             Assert.AreEqual(_packet.Ssrc, _ssrc);
@@ -111,15 +114,16 @@
             var bytes = new byte[0];
             var offset = 0;
 
-            // Act
             _packet.Version = _version;
-            _packet.HasPadding = false;
+            _packet.HasPadding = true;
             _packet.HasExtension = false;
             _packet.Marker = true;
             _packet.SequenceNumber = _secno;
             _packet.TimeStamp = _timestamp;
             _packet.Ssrc = _ssrc;
-            _packet.SetPayload(_pt, _payload);
+            _packet.SetPayload(_pt, _payload, _padding);
+
+            // Act
             _packet.Pack(ref bytes, ref offset);
 
             // Assert
