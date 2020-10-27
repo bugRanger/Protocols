@@ -468,10 +468,9 @@
                 {
                     property.Set(this, items[1].TrimStart());
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // TODO Handle error.
-                    //throw new ArgumentException(items[0], ex);
+                    throw new ArgumentException(items[0], ex);
                 }
             }
 
