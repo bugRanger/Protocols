@@ -210,23 +210,35 @@
         {
             #region Properties
 
+            public string Name { get; }
+
+            public string CompactName { get; }
+
             public Func<SipPacket, string> Get { get; }
 
             public Action<SipPacket, string> Set { get; }
 
             public Func<SipPacket, bool> Available { get; }
 
+            public bool HasCompact { get; }
+
             #endregion Properties
 
             #region Constructors
 
-            public Property(Func<SipPacket, string> getter, Action<SipPacket, string> settter) : this(getter, settter, (packet) => true) { }
-
-            public Property(Func<SipPacket, string> getter, Action<SipPacket, string> settter, Func<SipPacket, bool> available) 
+            public Property(string name, string compact, Func<SipPacket, string> getter, Action<SipPacket, string> settter, Func<SipPacket, bool> available = null)
+                : this(name, getter, settter, available)
             {
+                CompactName = compact;
+                HasCompact = !string.IsNullOrWhiteSpace(CompactName);
+            }
+
+            public Property(string name, Func<SipPacket, string> getter, Action<SipPacket, string> settter, Func<SipPacket, bool> available = null) 
+            {
+                Name = name;
                 Get = getter;
                 Set = settter;
-                Available = available;
+                Available = (packet) => available?.Invoke(packet) ?? true;
             }
 
             #endregion Constructors
@@ -248,7 +260,8 @@
 
         #region Fields
 
-        private List<string> _cached;
+        private readonly List<string> _cached;
+        private readonly bool _compact;
 
         #endregion Fields
 
@@ -283,21 +296,20 @@
         static SipPacket()
         {
             // TODO: Impl others attributes.
-            _properties = new Dictionary<string, Property>(StringComparer.InvariantCultureIgnoreCase)
-            {
-                { "From", new Property((packet) => packet.From.Pack(true), (packet, value) => packet.From = SipUri.Parse(value)) },
-                { "To", new Property((packet) => packet.To.Pack(true), (packet, value) => packet.To = SipUri.Parse(value)) },
-                { "CSeq", new Property(CSeqGdetter, CSeqSetter) },
-                { "Call-ID", new Property((packet) => packet.CallId, (packet, value) => packet.CallId = value) },
-                { "Contact", new Property((packet) => packet.Concact.Pack(true), (packet, value) => packet.Concact = SipUri.Parse(value), (packet) => packet.Method == SipMethod.INVITE) },
-                { "Content-Type", new Property((packet) => packet.ContentType, (packet, value) => packet.ContentType = value, (packet) => packet.ContentLength > 0) },
-                { "Content-Length", new Property((packet) => packet.ContentLength.ToString(), (packet, value) => packet.ContentLength = int.Parse(value)) },
-            };
+            _properties = new Dictionary<string, Property>(StringComparer.InvariantCultureIgnoreCase);
+            SetProperty(new Property("From", "f", (packet) => packet.From.Pack(true), (packet, value) => packet.From = SipUri.Parse(value)));
+            SetProperty(new Property("To", "t", (packet) => packet.To.Pack(true), (packet, value) => packet.To = SipUri.Parse(value)));
+            SetProperty(new Property("CSeq", CSeqGdetter, CSeqSetter));
+            SetProperty(new Property("Call-ID", "i", (packet) => packet.CallId, (packet, value) => packet.CallId = value));
+            SetProperty(new Property("Contact", "m", (packet) => packet.Concact.Pack(true), (packet, value) => packet.Concact = SipUri.Parse(value), (packet) => packet.Method == SipMethod.INVITE));
+            SetProperty(new Property("Content-Type", "c", (packet) => packet.ContentType, (packet, value) => packet.ContentType = value, (packet) => packet.ContentLength > 0));
+            SetProperty(new Property("Content-Length", "l", (packet) => packet.ContentLength.ToString(), (packet, value) => packet.ContentLength = int.Parse(value)));
         }
 
-        public SipPacket() 
+        public SipPacket(bool compact = false) 
         {
             _cached = new List<string>();
+            _compact = compact;
         }
 
         #endregion Constructors
@@ -411,9 +423,16 @@
             foreach (var item in _cached)
                 header += item + CRLF;
 
+            var added = new HashSet<string>();
             foreach (KeyValuePair<string, Property> item in _properties)
-                if (item.Value.Available(this))
-                    header += $"{item.Key}: {item.Value.Get(this)}" + SPACE + CRLF;
+            {
+                if (added.Add(item.Value.Name) && item.Value.Available(this))
+                {
+                    var property = _compact && item.Value.HasCompact ? item.Value.CompactName : item.Value.Name;
+                    // TODO Для списков передавать как делегат заполнения.
+                    header += $"{property}: {item.Value.Get(this)}" + SPACE + CRLF;
+                }
+            }
 
             return header + SPACE + CRLF;
         }
@@ -495,6 +514,14 @@
         private static string CSeqGdetter(SipPacket packet)
         {
             return packet.CSeq + SPACE + packet.Method;
+        }
+
+        private static void SetProperty(Property property)
+        {
+            _properties[property.Name] = property;
+
+            if (property.HasCompact)
+                _properties[property.CompactName] = property;
         }
 
         #endregion Methods

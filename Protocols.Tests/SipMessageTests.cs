@@ -1,6 +1,9 @@
 namespace Protocols.Tests
 {
+    using System;
     using System.Text;
+    using System.Collections.Generic;
+
     using NUnit.Framework;
 
     using Protocols.Channels.Sip;
@@ -110,6 +113,7 @@ namespace Protocols.Tests
 
         #region Fields
 
+        private Dictionary<string, string> _compactMapper;
         private SipPacket _packet;
         private SipUri _from;
         private SipUri _to;
@@ -123,12 +127,20 @@ namespace Protocols.Tests
         [SetUp]
         public void Setup()
         {
+            _compactMapper = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase)
+            {
+                { "\r\nFrom:", "\r\nf:" },
+                { "\r\nTo:", "\r\nt:" },
+                { "\r\nCall-ID:", "\r\ni:" },
+                { "\r\nContact:", "\r\nm:" },
+                { "\r\nContent-Type:", "\r\nc:" },
+                { "\r\nContent-Length:", "\r\nl:" },
+            };
             _from = new SipUri("115", "192.168.56.105", "94b1fa2000614ec090b2c45af2d4cee1");
             _to = new SipUri("31337", "192.168.56.105", "as56ee551e");
 
             _callId = "c7e6ad40e49e44d4b665d621c4627149";
             _cseq = 16564;
-
             _packet = new SipPacket();
         }
 
@@ -146,7 +158,7 @@ namespace Protocols.Tests
         [TestCase(TxBadEvent)]
         public void UnpackTest(string message)
         {
-            // Arrage
+            // Arrage            
             var offset = 0;
             byte[] bytes = Encoding.ASCII.GetBytes(message);
 
@@ -170,7 +182,7 @@ namespace Protocols.Tests
         [TestCase(TxBadEvent)]
         public void UnpackWithOffsetTest(string message)
         {
-            // Arrage
+            // Arrage            
             var offset = 0;
             var result = false;
             var concat = string.Empty;
@@ -190,16 +202,30 @@ namespace Protocols.Tests
             Assert.AreEqual(offset, Encoding.ASCII.GetByteCount(message));
         }
 
-        [TestCase(TxInvite)]
-        [TestCase(RxTrying)]
-        [TestCase(RxOk)]
-        [TestCase(TxAck)]
-        [TestCase(TxBadEvent)]
-        public void PackTest(string message)
+        [TestCase(TxInvite, false)]
+        [TestCase(TxInvite, true)]
+        [TestCase(RxTrying, false)]
+        [TestCase(RxTrying, true)]
+        [TestCase(RxOk, false)]
+        [TestCase(RxOk, true)]
+        [TestCase(TxAck, false)]
+        [TestCase(TxAck, true)]
+        [TestCase(TxBadEvent, false)]
+        [TestCase(TxBadEvent, true)]
+        public void PackTest(string message, bool compact)
         {
             // Arrage
+            _packet = new SipPacket(compact);
+
             var offset = 0;
             var bytes = new byte[0];
+            if (compact)
+            {
+                foreach (var item in _compactMapper)
+                {
+                    message = message.Replace(item.Key, item.Value);
+                }
+            }
             var lines = message.Split("\r\n");
 
             // Act
