@@ -14,7 +14,7 @@ namespace Protocols.Tests
 
         private const string TxInvite =
             "INVITE sip:115@192.168.56.105:5061 SIP/2.0 \r\n" +
-            "Via: SIP/2.0/UDP 192.168.56.105:5061;branch=z9hG4bKPj3e715762683b4c95b5609f613dcee8bf \r\n" +
+            "Via: SIP/2.0/UDP 192.168.56.1:5061;branch=z9hG4bKPj3e715762683b4c95b5609f613dcee8bf \r\n" +
             "Max-Forwards: 70 \r\n" +
             "User-Agent: Claro BS6282 89F8 \r\n" +
             "Allow: INVITE,OPTIONS,CANCEL,ACK,BYE,PRACK,INFO,REFER,NOTIFY \r\n" +
@@ -87,7 +87,7 @@ namespace Protocols.Tests
 
         private const string TxAck =
             "ACK sip:31337@192.168.56.105:5060 SIP/2.0 \r\n" +
-            "Via: SIP/2.0/UDP 192.168.56.1:5061;branch=z9hG4bKPj3e715762683b4c95b5609f613dcee8bf" +
+            "Via: SIP/2.0/UDP 192.168.56.1:5061;branch=z9hG4bKPj3e715762683b4c95b5609f613dcee8bf \r\n" +
             "Max-Forwards: 70 \r\n" +
             "From: <sip:115@192.168.56.105>;tag=94b1fa2000614ec090b2c45af2d4cee1 \r\n" +
             "To: <sip:31337@192.168.56.105>;tag=as56ee551e \r\n" +
@@ -98,7 +98,7 @@ namespace Protocols.Tests
 
         private const string TxBadEvent =
             "SIP/2.0 489 Bad Event \r\n" +
-            "Via: SIP/2.0/UDP 192.168.56.1:5061;branch=z9hG4bKPjd8e9159e9f6241a6868738b214679336;received=192.168.56.1 \r\n" +
+            "Via: SIP/2.0/UDP 192.168.56.1:5061;branch=z9hG4bKPj3e715762683b4c95b5609f613dcee8bf;received=192.168.56.1 \r\n" +
             "From: <sip:115@192.168.56.105>;tag=94b1fa2000614ec090b2c45af2d4cee1 \r\n" +
             "To: <sip:31337@192.168.56.105>;tag=as56ee551e \r\n" +
             "Call-ID: c7e6ad40e49e44d4b665d621c4627149 \r\n" +
@@ -114,6 +114,7 @@ namespace Protocols.Tests
         #region Fields
 
         private Dictionary<string, string> _compactMapper;
+        private SipVia _via;
         private SipPacket _packet;
         private SipUri _from;
         private SipUri _to;
@@ -129,12 +130,20 @@ namespace Protocols.Tests
         {
             _compactMapper = new Dictionary<string, string>(StringComparer.InvariantCultureIgnoreCase)
             {
+                { "\r\nVia:", "\r\nv:" },
                 { "\r\nFrom:", "\r\nf:" },
                 { "\r\nTo:", "\r\nt:" },
                 { "\r\nCall-ID:", "\r\ni:" },
                 { "\r\nContact:", "\r\nm:" },
                 { "\r\nContent-Type:", "\r\nc:" },
                 { "\r\nContent-Length:", "\r\nl:" },
+            };
+
+            _via = new SipVia()
+            { 
+                Protocol = "UDP",
+                Aliase = "192.168.56.1:5061",
+                Branch = "z9hG4bKPj3e715762683b4c95b5609f613dcee8bf",
             };
             _from = new SipUri("115", "192.168.56.105", "94b1fa2000614ec090b2c45af2d4cee1");
             _to = new SipUri("31337", "192.168.56.105", "as56ee551e");
@@ -169,10 +178,12 @@ namespace Protocols.Tests
             // Assert
             Assert.IsTrue(result);
             Assert.AreEqual(offset, bytes.Length);
-            Assert.AreEqual(_packet.CallId, _callId);
-            Assert.AreEqual(_packet.CSeq, _cseq);
-            Assert.AreEqual(_packet.From.Address, _from.Address);
-            Assert.AreEqual(_packet.To.Address, _to.Address);
+            Assert.AreEqual(_callId, _packet.CallId);
+            Assert.AreEqual(_cseq, _packet.CSeq);
+            Assert.AreEqual(_from.Address, _packet.From.Address);
+            Assert.AreEqual(_to.Address, _packet.To.Address);
+            Assert.AreEqual(1, _packet.Via.Count);
+            Assert.AreEqual(_via, _packet.Via[0]);
         }
 
         [TestCase(TxInvite)]

@@ -39,8 +39,21 @@
 
         #region Methods
 
+        public string Pack(bool isCarriage)
+        {
+            string uri = $"{START}{Address}{SEPARATOR}{Domain}";
+
+            if (isCarriage)
+                uri = $"<{uri}>";
+
+            if (!string.IsNullOrWhiteSpace(Tag))
+                uri += $"{TAG}{Tag}";
+
+            return uri;
+        }
+
         // TODO "asterisk" <sip:asterisk@192.168.56.105> -> Aliase <User@Host:Port>
-        public static SipUri Parse(string uid) 
+        public static SipUri Parse(string uid)
         {
             int offset = uid.IndexOf(START);
             if (offset == -1)
@@ -62,24 +75,11 @@
 
             //items = items[0].Split(SPACE, 2, StringSplitOptions.RemoveEmptyEntries);
             items = items[0].Split(SEPARATOR, 2, StringSplitOptions.RemoveEmptyEntries);
-            if(items.Length != 2)
+            if (items.Length != 2)
                 throw new ArgumentException();
 
             uri.Address = items[0];
             uri.Domain = items[1];
-
-            return uri;
-        }
-
-        public string Pack(bool isCarriage)
-        {
-            string uri = $"{START}{Address}{SEPARATOR}{Domain}";
-
-            if (isCarriage)
-                uri = $"<{uri}>";
-
-            if (!string.IsNullOrWhiteSpace(Tag))
-                uri += $"{TAG}{Tag}";
 
             return uri;
         }

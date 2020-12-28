@@ -1,12 +1,15 @@
 ﻿namespace Protocols.Channels.Sip
 {
     using System;
+    using System.Linq;
     using System.Text;
     using System.Collections.Generic;
 
     using Framework.Common;
 
     using Protocols.Extensions;
+
+    using SipProperty = PacketProperty<SipPacket>;
 
     // ==============================================================
     //          https://tools.ietf.org/html/rfc3261
@@ -202,66 +205,24 @@
     // <MESSAGE_BODY>
     // =========================================================
 
-    public class SipPacket : IPacket
+    public class SipPacket : IPacket, IBuildPacket
     {
-        #region Classes
-
-        private class Property
-        {
-            #region Properties
-
-            public string Name { get; }
-
-            public string CompactName { get; }
-
-            public Func<SipPacket, string> Get { get; }
-
-            public Action<SipPacket, string> Set { get; }
-
-            public Func<SipPacket, bool> Available { get; }
-
-            public bool HasCompact { get; }
-
-            #endregion Properties
-
-            #region Constructors
-
-            public Property(string name, string compact, Func<SipPacket, string> getter, Action<SipPacket, string> settter, Func<SipPacket, bool> available = null)
-                : this(name, getter, settter, available)
-            {
-                CompactName = compact;
-                HasCompact = !string.IsNullOrWhiteSpace(CompactName);
-            }
-
-            public Property(string name, Func<SipPacket, string> getter, Action<SipPacket, string> settter, Func<SipPacket, bool> available = null) 
-            {
-                Name = name;
-                Get = getter;
-                Set = settter;
-                Available = (packet) => available?.Invoke(packet) ?? true;
-            }
-
-            #endregion Constructors
-        }
-
-        #endregion Classes
-
         #region Constants
 
-        private const string SPACE = " ";
-        private const string CRLF = "\r\n";
-        private const string SEPARATOR = ":";
-        private const string VERSION = "SIP/2.0";
+        internal const string CRLF = "\r\n";
+        internal const string SPACE = " ";
+        internal const string SEPARATOR = ":";
+        internal const string VERSION = "SIP/2.0";
 
-        private static Encoding Encoding = Encoding.ASCII;
-        private static readonly Dictionary<string, Property> _properties;
+        internal static readonly Encoding Encoding = Encoding.ASCII;
+
+        private static readonly PacketBuilder<SipPacket> _properties;
 
         #endregion Constants
 
         #region Fields
 
-        private readonly List<string> _cached;
-        private readonly bool _compact;
+        private readonly Dictionary<int, string> _cached;
 
         #endregion Fields
 
@@ -273,6 +234,8 @@
         
         public SipUri Request { get; set; }
 
+        public List<SipVia> Via { get; private set; }
+
         public SipUri From { get; set; }
 
         public SipUri To { get; set; }
@@ -283,11 +246,13 @@
 
         public int CSeq { get; set; }
 
-        public string ContentType { get; private set; }
+        public string ContentType { get; internal set; }
 
-        public int ContentLength { get; private set; }
+        public int ContentLength { get; internal set; }
 
         public ArraySegment<byte> Content { get; private set; }
+
+        public bool UseCompact { get; }
 
         #endregion Property
 
@@ -295,21 +260,27 @@
 
         static SipPacket()
         {
-            // TODO: Impl others attributes.
-            _properties = new Dictionary<string, Property>(StringComparer.InvariantCultureIgnoreCase);
-            SetProperty(new Property("From", "f", (packet) => packet.From.Pack(true), (packet, value) => packet.From = SipUri.Parse(value)));
-            SetProperty(new Property("To", "t", (packet) => packet.To.Pack(true), (packet, value) => packet.To = SipUri.Parse(value)));
-            SetProperty(new Property("CSeq", CSeqGdetter, CSeqSetter));
-            SetProperty(new Property("Call-ID", "i", (packet) => packet.CallId, (packet, value) => packet.CallId = value));
-            SetProperty(new Property("Contact", "m", (packet) => packet.Concact.Pack(true), (packet, value) => packet.Concact = SipUri.Parse(value), (packet) => packet.Method == SipMethod.INVITE));
-            SetProperty(new Property("Content-Type", "c", (packet) => packet.ContentType, (packet, value) => packet.ContentType = value, (packet) => packet.ContentLength > 0));
-            SetProperty(new Property("Content-Length", "l", (packet) => packet.ContentLength.ToString(), (packet, value) => packet.ContentLength = int.Parse(value)));
+            _properties = new PacketBuilder<SipPacket>(CRLF)
+            {
+                // TODO: Impl others attributes.
+                new SipProperty("Via", "v", ViaGetter, ViaSetter),
+                /// TODO: Impl others attributes.
+                new SipProperty("From", "f", (p) => p.From.Pack(true), (p, value) => p.From = SipUri.Parse(value)),
+                new SipProperty("To", "t", (p) => p.To.Pack(true), (p, value) => p.To = SipUri.Parse(value)),
+                new SipProperty("Call-ID", "i", (p) => p.CallId, (p, value) => p.CallId = value),
+                new SipProperty("CSeq", CSeqGetter, CSeqSetter),
+                new SipProperty("Contact", "m", (p) => p.Concact.Pack(true), (p, value) => p.Concact = SipUri.Parse(value), (p) => p.Method == SipMethod.INVITE),
+                new SipProperty("Content-Type", "c", (p) => p.ContentType, (p, value) => p.ContentType = value, (p) => p.ContentLength > 0),
+                new SipProperty("Content-Length", "l", (p) => p.ContentLength.ToString(), (p, value) => p.ContentLength = int.Parse(value))
+            };
         }
 
-        public SipPacket(bool compact = false) 
+        public SipPacket(bool compact = false)
         {
-            _cached = new List<string>();
-            _compact = compact;
+            _cached = new Dictionary<int, string>();
+
+            Via = new List<SipVia>();
+            UseCompact = compact;
         }
 
         #endregion Constructors
@@ -354,18 +325,28 @@
             var tmpOffset = offset;
             var count = buffer.Length - tmpOffset;
             if (count <= 0)
+            {
                 return false;
+            }
 
-            string[] message = Encoding.GetString(buffer, tmpOffset, count).Split(CRLF, StringSplitOptions.RemoveEmptyEntries);
+            string[] message = Encoding
+                .GetString(buffer, tmpOffset, count)
+                .Split(CRLF, StringSplitOptions.RemoveEmptyEntries);
 
             if (message.Length <= 1)
+            {
                 return false;
+            }
 
             if (!TryStartLineParse(message[0], ref tmpOffset))
+            {
                 return false;
+            }
 
             if (!TryHeaderParse(message, ref tmpOffset))
+            {
                 return false;
+            }
 
             if (ContentLength > 0)
             {
@@ -388,7 +369,9 @@
 
             BufferBits.SetBytes(message, buffer, ref offset);
             if (ContentLength > 0)
+            {
                 BufferBits.SetBytes(Content.ToArray(), buffer, ref offset);
+            }
         }
 
         public ArraySegment<byte> Pack()
@@ -402,7 +385,7 @@
 
         private string StartLineBuild()
         {
-            var result = string.Empty;
+            string result;
 
             if (Status != null)
             {
@@ -418,30 +401,48 @@
 
         private string HeaderBuild()
         {
-            string header = string.Empty;
+            var properties = new List<string>();
+            _properties.Build(this, (property, value) => properties.Add($"{property}: {value}"));
 
-            foreach (var item in _cached)
-                header += item + CRLF;
-
-            var added = new HashSet<string>();
-            foreach (KeyValuePair<string, Property> item in _properties)
+            if (_cached.Count == 0)
             {
-                if (added.Add(item.Value.Name) && item.Value.Available(this))
-                {
-                    var property = _compact && item.Value.HasCompact ? item.Value.CompactName : item.Value.Name;
-                    // TODO Для списков передавать как делегат заполнения.
-                    header += $"{property}: {item.Value.Get(this)}" + SPACE + CRLF;
-                }
+                return string.Join(SPACE + CRLF, properties) + SPACE + CRLF;
             }
 
-            return header + SPACE + CRLF;
+            var line = 1;
+            var cached = string.Empty;
+            var enumeration = properties.GetEnumerator();
+
+            foreach (var item in _cached)
+            {
+                while (line < item.Key)
+                {
+                    if (!enumeration.MoveNext())
+                        break;
+
+                    cached += enumeration.Current + SPACE + CRLF;
+                    line++;
+                }
+
+                cached += item.Value + CRLF;
+                line++;
+            }
+
+            while (enumeration.MoveNext())
+            {
+                cached += enumeration.Current + SPACE + CRLF;
+            }
+
+            return cached + SPACE + CRLF;
         }
 
         private bool TryStartLineParse(string message, ref int offset)
         {
             string[] items = message.TrimEnd().Split(SPACE, 3, StringSplitOptions.RemoveEmptyEntries);
             if (items.Length != 3)
+            {
                 return false;
+            }
 
             if (items[0] == VERSION && int.TryParse(items[^2], out var status) && Enum.IsDefined(typeof(SipStatus), status))
             {
@@ -464,6 +465,8 @@
 
         private bool TryHeaderParse(string[] message, ref int offset)
         {
+            Via.Clear();
+
             _cached.Clear();
 
             for (int i = 1; i < message.Length; i++)
@@ -471,15 +474,19 @@
                 offset += Encoding.GetByteCount(message[i] + CRLF);
 
                 if (message[i] == SPACE)
+                {
                     return true;
+                }
 
                 var items = message[i].TrimEnd().Split(SEPARATOR, 2, StringSplitOptions.RemoveEmptyEntries);
                 if (items.Length != 2)
+                {
                     return false;
+                }
 
                 if (!_properties.TryGetValue(items[0], out var property))
                 {
-                    _cached.Add(message[i]);
+                    _cached.Add(i, message[i]);
                     continue;
                 }
 
@@ -496,6 +503,21 @@
             return false;
         }
 
+        private static string ViaGetter(SipPacket packet)
+        {
+            return string.Join(CRLF, packet.Via.Where(w => !w.IsEmpty()).Select(s => s.Pack()));
+        }
+
+        private static void ViaSetter(SipPacket packet, string value)
+        {
+            packet.Via.Add(SipVia.Parse(value));
+        }
+
+        private static string CSeqGetter(SipPacket packet)
+        {
+            return packet.CSeq + SPACE + packet.Method;
+        }
+
         private static void CSeqSetter(SipPacket packet, string value)
         {
             string[] items = value.Split(SPACE, 2, StringSplitOptions.RemoveEmptyEntries);
@@ -509,19 +531,6 @@
 
             packet.Method = method;
             packet.CSeq = cseq;
-        }
-
-        private static string CSeqGdetter(SipPacket packet)
-        {
-            return packet.CSeq + SPACE + packet.Method;
-        }
-
-        private static void SetProperty(Property property)
-        {
-            _properties[property.Name] = property;
-
-            if (property.HasCompact)
-                _properties[property.CompactName] = property;
         }
 
         #endregion Methods
