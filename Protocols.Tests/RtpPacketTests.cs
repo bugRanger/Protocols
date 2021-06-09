@@ -75,14 +75,13 @@
         [Test]
         public void UnpackTest()
         {
-            // Arrage
+            // Arrange
             var offset = 0;
 
             // Act
-            bool result = _packet.TryUnpack(_bytes, ref offset);
+            _packet.Unpack(_bytes, ref offset, _bytes.Length);
 
             // Assert
-            Assert.IsTrue(result);
             Assert.AreEqual(offset, _bytes.Length);
             Assert.AreEqual(_packet.Version, _version);
             Assert.AreEqual(_packet.HasPadding, true);
@@ -100,7 +99,7 @@
         [Test]
         public void UnpackWithOffsetTest()
         {
-            // Arrage
+            // Arrange
             var offset = 0;
 
             // Act
@@ -110,7 +109,7 @@
         [Test]
         public void PackTest()
         {
-            // Arrage
+            // Arrange
             var bytes = new byte[0];
             var offset = 0;
 

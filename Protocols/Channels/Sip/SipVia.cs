@@ -1,22 +1,23 @@
 ﻿namespace Protocols.Channels.Sip
 {
     using System;
+    using System.Text;
 
     //Example:          SIP/2.0/UDP 192.168.56.1:5061;branch=z9hG4bKPj3e715762683b4c95b5609f613dcee8bf;received=192.168.56.1
     //via-params        =  via-ttl / via-maddr / via-received / via-branch / response-port / via-extension
 
-    public class SipVia : IBuildPacket, IEquatable<SipVia>
+    public class SipVia : Packet, IEquatable<SipVia>
     {
         #region Constants
 
-        private const string EQUAL = "=";
         private const string SEPARATOR = ";";
+        private const string EQUAL = "=";
 
         #endregion Constants
 
         #region Fields
 
-        private static readonly PacketBuilder<SipVia> _properties;
+        private static readonly PacketBuilder<SipVia> _builder;
 
         #endregion Fields
 
@@ -32,90 +33,76 @@
 
         public int? ResponsePort { get; set; }
 
-        public bool UseCompact => false;
-
         #endregion Properties
 
         #region Constructors
 
-        static SipVia() 
+        static SipVia()
         {
-            _properties = new PacketBuilder<SipVia>()
+            _builder = new PacketBuilder<SipVia>(4)
             {
-                new PacketProperty<SipVia>("rport", (p) => p.ResponsePort.ToString(), (p, value) => p.ResponsePort = int.Parse(value), (p) => p.ResponsePort.HasValue),
-                new PacketProperty<SipVia>("branch", (p) => p.Branch, (p, value) => p.Branch = value, (p) => !string.IsNullOrWhiteSpace(p.Branch)),
-                new PacketProperty<SipVia>("received", (p) => p.Received, (p, value) => p.Received = value, (p) => !string.IsNullOrWhiteSpace(p.Received)),
+                new PacketGroup<SipVia>(
+                    new PacketGroup<SipVia>(
+                        new PacketItem<SipVia>((p) => SipPacket.PROT) { HasOrdered = true, HasConstant = true },
+                        new PacketItem<SipVia>((p) => SipPacket.VERSION) { HasOrdered = true, HasConstant = true },
+                        new PacketItem<SipVia>((p) => p.Protocol, (p, v) => p.Protocol = v) { HasOrdered = true })
+                    .SetBuilder(builder =>
+                    {
+                        builder.Encoding = SipPacket.Encoding;
+                        builder.Separator = SipPacket.SLASH;
+                        builder.TrailingSeparator = false;
+                    }),
+                    new PacketItem<SipVia>((p) => p.Aliase, (p, v) => p.Aliase = v) { HasOrdered = true })
+                .SetBuilder(builder => 
+                {
+                    builder.Encoding = SipPacket.Encoding;
+                    builder.Separator = SipPacket.SPACE;
+                    builder.TrailingSeparator = false;
+                }),
+
+                new PacketItem<SipVia>("rport", (p) => p.ResponsePort.ToString(), (p, value) => p.ResponsePort = int.Parse(value), (p) => p.ResponsePort.HasValue),
+                new PacketItem<SipVia>("branch", (p) => p.Branch, (p, value) => p.Branch = value, (p) => !string.IsNullOrWhiteSpace(p.Branch)),
+                new PacketItem<SipVia>("received", (p) => p.Received, (p, value) => p.Received = value, (p) => !string.IsNullOrWhiteSpace(p.Received)),
             };
+            _builder.Encoding = SipPacket.Encoding;
+            _builder.Equal = EQUAL;
+            _builder.Separator = SEPARATOR;
+            _builder.TrailingSeparator = false;
         }
 
         #endregion Constructors
 
         #region Methods
 
-        public string Pack() 
-        {
-            var result = $"{SipPacket.VERSION}/{Protocol} {Aliase}";
-
-            _properties.Build(this, (property, value) => result += $"{SEPARATOR}{property}{EQUAL}{value}");
-
-            return result;
-        }
-
-        public static SipVia Parse(string via)
+        public static SipVia Parse(string message)
         {
             var result = new SipVia();
 
-            if (!via.StartsWith(SipPacket.VERSION))
-            {
-                return null;
-            }
+            var offset = 0;
 
-            var token = via.Substring(SipPacket.VERSION.Length + 1)
-                .Split(SipPacket.SPACE, StringSplitOptions.RemoveEmptyEntries);
-
-            if (token.Length < 1)
-            {
-                return null;
-            }
-
-            result.Protocol = token[0];
-
-            token = token[1].Split(SEPARATOR, StringSplitOptions.RemoveEmptyEntries);
-            if (token.Length == 0)
-            {
-                return null;
-            }
-
-            result.Aliase = token[0];
-
-            if (token.Length != 1)
-            {
-                for (int i = 1; i < token.Length; i++)
-                {
-                    var subToken = token[i].Split(EQUAL);
-                    if (subToken.Length != 2)
-                    {
-                        continue;
-                    }
-
-                    if(!_properties.TryGetValue(subToken[0], out var property))
-                    {
-                        continue;
-                    }
-
-                    property.Set(result, subToken[1]);
-                }
-            }
-
+            result.Unpack(message, ref offset, message.Length);
 
             return result;
         }
 
-        internal bool IsEmpty()
+        public override void Pack(ref byte[] buffer, ref int offset)
         {
-            return
-                string.IsNullOrEmpty(Protocol) ||
-                string.IsNullOrEmpty(Aliase);
+            _builder.Pack(this, ref buffer, ref offset);
+        }
+
+        public string Pack()
+        {
+            return _builder.Pack(this);
+        }
+
+        public override void Unpack(byte[] buffer, ref int offset, int count) 
+        {
+
+        }
+
+        public void Unpack(string message, ref int offset, int count)
+        {
+            _builder.Unpack(this, message, ref offset, count);
         }
 
         public bool Equals(SipVia other)
@@ -125,6 +112,13 @@
                 Protocol == other.Protocol &&
                 Aliase == other.Aliase &&
                 Branch == other.Branch;
+        }
+
+        internal bool IsEmpty()
+        {
+            return
+                string.IsNullOrEmpty(Protocol) ||
+                string.IsNullOrEmpty(Aliase);
         }
 
         #endregion Methods

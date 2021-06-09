@@ -30,10 +30,6 @@
 
         #endregion Properties
 
-        #region Constructors
-
-        #endregion Constructors
-
         #region Methods
 
         public string Pack() 

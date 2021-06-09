@@ -51,12 +51,11 @@
             Length--;
         }
 
-        public bool TryUnpack(byte[] buffer, ref int offset)
-        {
-            var bufferSpace = buffer.Length - offset;
 
-            if (bufferSpace < GetByteLength())
-                return false;
+        public void Unpack(byte[] buffer, ref int offset, int count)
+        {
+            if (count < GetByteLength())
+                throw new ArgumentOutOfRangeException(nameof(count));
 
             Profile = BufferBits.GetUInt16(buffer, ref offset);
             Length = BufferBits.GetUInt16(buffer, ref offset);
@@ -64,7 +63,6 @@
                 _extensionList.Add(BufferBits.GetUInt32(buffer, ref offset));
 
             offset += Extension.Count * 8;
-            return true;
         }
 
         public void Pack(ref byte[] buffer, ref int offset)

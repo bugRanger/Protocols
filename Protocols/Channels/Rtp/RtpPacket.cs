@@ -121,12 +121,10 @@
             PaddingCount = padding;
         }
 
-        public bool TryUnpack(byte[] buffer, ref int offset)
+        public void Unpack(byte[] buffer, ref int offset, int count)
         {
-            var bufferSpace = buffer.Length - offset;
-
-            if (bufferSpace < GetByteLength())
-                return false;
+            if (count < GetByteLength())
+                throw new ArgumentOutOfRangeException(nameof(count));
 
             var bitOffset = 0;
             CsrcCount = BufferBits.GetByte(buffer, offset, ref bitOffset, 4);
@@ -134,7 +132,7 @@
             HasPadding = BufferBits.GetBool(buffer, offset, ref bitOffset);
             Version = BufferBits.GetByte(buffer, ref offset, ref bitOffset, 2);
             if (Version != DEFAULT_VERSION_VALUE)
-                return false;
+                throw new ArgumentException(nameof(Version));
 
             bitOffset = 0;
             PayloadType = BufferBits.GetByte(buffer, offset, ref bitOffset, 7);
@@ -144,14 +142,16 @@
             TimeStamp = BufferBits.GetUInt32(buffer, ref offset);
             Ssrc = BufferBits.GetUInt32(buffer, ref offset);
 
-            if (bufferSpace < GetByteLength())
-                return false;
+            if (count < GetByteLength())
+                throw new ArgumentOutOfRangeException(nameof(count));
 
             for (int i = 0; i < CsrcCount; i++)
                 _csrcList.Add(BufferBits.GetUInt32(buffer, ref offset));
 
-            if (HasExtension && !Extension.TryUnpack(buffer, ref offset))
-                return false;
+            if (HasExtension)
+            {
+                Extension.Unpack(buffer, ref offset, buffer.Length);
+            }
 
             var payloadCount = buffer.Length - offset;
             if (HasPadding)
@@ -166,8 +166,6 @@
 
             if (HasPadding)
                 offset += PaddingCount;
-
-            return true;
         }
 
         public void Pack(ref byte[] buffer, ref int offset)

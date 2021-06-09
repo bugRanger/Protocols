@@ -167,16 +167,15 @@ namespace Protocols.Tests
         [TestCase(TxBadEvent)]
         public void UnpackTest(string message)
         {
-            // Arrage            
+            // Arrange            
             var offset = 0;
             byte[] bytes = Encoding.ASCII.GetBytes(message);
 
             // Act
-            bool result = _packet.TryUnpack(bytes, ref offset);
+            _packet.Unpack(bytes, ref offset, bytes.Length);
 
             // TODO Add more asserts.
             // Assert
-            Assert.IsTrue(result);
             Assert.AreEqual(offset, bytes.Length);
             Assert.AreEqual(_callId, _packet.CallId);
             Assert.AreEqual(_cseq, _packet.CSeq);
@@ -193,9 +192,8 @@ namespace Protocols.Tests
         [TestCase(TxBadEvent)]
         public void UnpackWithOffsetTest(string message)
         {
-            // Arrage            
+            // Arrange            
             var offset = 0;
-            var result = false;
             var concat = string.Empty;
             var lines = message.Split("\r\n");
 
@@ -203,14 +201,19 @@ namespace Protocols.Tests
             foreach (var item in lines)
             {
                 concat += item + "\r\n";
-                result = _packet.TryUnpack(Encoding.ASCII.GetBytes(concat), ref offset);
-                if (result)
-                    break;
+
+                try
+                {
+                    _packet.Unpack(Encoding.ASCII.GetBytes(concat), ref offset, concat.Length);
+                }
+                catch
+                {
+                    continue;
+                }
             }
 
             // Assert
-            Assert.IsTrue(result);
-            Assert.AreEqual(offset, Encoding.ASCII.GetByteCount(message));
+            Assert.AreEqual(offset, message.Length);
         }
 
         [TestCase(TxInvite, false)]
@@ -225,7 +228,7 @@ namespace Protocols.Tests
         [TestCase(TxBadEvent, true)]
         public void PackTest(string message, bool compact)
         {
-            // Arrage
+            // Arrange
             _packet = new SipPacket(compact);
 
             var offset = 0;

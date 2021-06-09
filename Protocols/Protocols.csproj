@@ -13,8 +13,16 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Channels\Modbus\" />
-    <Folder Include="Channels\IEC104\" />
+    <Compile Remove="Channels\IEC104\**" />
+    <Compile Remove="Channels\Modbus\**" />
+    <EmbeddedResource Remove="Channels\IEC104\**" />
+    <EmbeddedResource Remove="Channels\Modbus\**" />
+    <None Remove="Channels\IEC104\**" />
+    <None Remove="Channels\Modbus\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Channels\[Common]\" />
   </ItemGroup>
 
   <ItemGroup>

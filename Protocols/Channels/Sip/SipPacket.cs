@@ -1,15 +1,12 @@
 ﻿namespace Protocols.Channels.Sip
 {
     using System;
-    using System.Linq;
     using System.Text;
     using System.Collections.Generic;
 
     using Framework.Common;
 
-    using Protocols.Extensions;
-
-    using SipProperty = PacketProperty<SipPacket>;
+    using SipTag = PacketItem<SipPacket>;
 
     // ==============================================================
     //          https://tools.ietf.org/html/rfc3261
@@ -205,24 +202,23 @@
     // <MESSAGE_BODY>
     // =========================================================
 
-    public class SipPacket : IPacket, IBuildPacket
+    public class SipPacket : Packet
     {
         #region Constants
 
         internal const string CRLF = "\r\n";
         internal const string SPACE = " ";
-        internal const string SEPARATOR = ":";
-        internal const string VERSION = "SIP/2.0";
-
-        internal static readonly Encoding Encoding = Encoding.ASCII;
-
-        private static readonly PacketBuilder<SipPacket> _properties;
+        internal const string SLASH = "/";
+        internal const string PROT = "SIP";
+        internal const string VERSION = "2.0";
 
         #endregion Constants
 
         #region Fields
 
-        private readonly Dictionary<int, string> _cached;
+        internal static readonly Encoding Encoding = Encoding.ASCII;
+
+        private static readonly PacketBuilder<SipPacket> _builder;
 
         #endregion Fields
 
@@ -240,7 +236,7 @@
 
         public SipUri To { get; set; }
 
-        public SipUri Concact { get; set; }
+        public SipUri Contact { get; set; }
 
         public string CallId { get; set; }
 
@@ -252,35 +248,33 @@
 
         public ArraySegment<byte> Content { get; private set; }
 
-        public bool UseCompact { get; }
-
         #endregion Property
 
         #region Constructors
 
         static SipPacket()
         {
-            _properties = new PacketBuilder<SipPacket>(CRLF)
+            _builder = new PacketBuilder<SipPacket>(9)
             {
-                // TODO: Impl others attributes.
-                new SipProperty("Via", "v", ViaGetter, ViaSetter),
-                /// TODO: Impl others attributes.
-                new SipProperty("From", "f", (p) => p.From.Pack(true), (p, value) => p.From = SipUri.Parse(value)),
-                new SipProperty("To", "t", (p) => p.To.Pack(true), (p, value) => p.To = SipUri.Parse(value)),
-                new SipProperty("Call-ID", "i", (p) => p.CallId, (p, value) => p.CallId = value),
-                new SipProperty("CSeq", CSeqGetter, CSeqSetter),
-                new SipProperty("Contact", "m", (p) => p.Concact.Pack(true), (p, value) => p.Concact = SipUri.Parse(value), (p) => p.Method == SipMethod.INVITE),
-                new SipProperty("Content-Type", "c", (p) => p.ContentType, (p, value) => p.ContentType = value, (p) => p.ContentLength > 0),
-                new SipProperty("Content-Length", "l", (p) => p.ContentLength.ToString(), (p, value) => p.ContentLength = int.Parse(value))
+                new SipHeader(),
+                new SipVias(),
+                new SipTag("From", "f", (p) => p.From.Pack(true), (p, value) => p.From = SipUri.Parse(value)),
+                new SipTag("To", "t", (p) => p.To.Pack(true), (p, value) => p.To = SipUri.Parse(value)),
+                new SipTag("Call-ID", "i", (p) => p.CallId, (p, value) => p.CallId = value),
+                new SipCSeq(),
+                new SipTag("Contact", "m", (p) => p.Contact.Pack(true), (p, value) => p.Contact = SipUri.Parse(value), (p) => p.Method == SipMethod.INVITE),
+                new SipTag("Content-Type", "c", (p) => p.ContentType, (p, value) => p.ContentType = value, (p) => p.ContentLength > 0),
+                new SipTag("Content-Length", "l", (p) => p.ContentLength.ToString(), (p, value) => p.ContentLength = int.Parse(value))
             };
+            _builder.Encoding = Encoding.ASCII;
+            _builder.Equal = ": ";
+            _builder.Separator = " \r\n";
+            _builder.TrailingSeparator = true;
         }
 
-        public SipPacket(bool compact = false)
+        public SipPacket(bool compact = false) : base(compact)
         {
-            _cached = new Dictionary<int, string>();
-
             Via = new List<SipVia>();
-            UseCompact = compact;
         }
 
         #endregion Constructors
@@ -296,7 +290,7 @@
             return this;
         }
 
-        public bool TryUnpack(byte[] buffer, ref int offset)
+        public override void Unpack(byte[] buffer, ref int offset, int count)
         {
             /* Rfc 2822 2.2 Header Fields
 				Header fields are lines composed of a field name, followed by a colon
@@ -323,51 +317,32 @@
 			*/
 
             var tmpOffset = offset;
-            var count = buffer.Length - tmpOffset;
+
             if (count <= 0)
             {
-                return false;
+                throw new ArgumentOutOfRangeException(nameof(count));
             }
 
-            string[] message = Encoding
-                .GetString(buffer, tmpOffset, count)
-                .Split(CRLF, StringSplitOptions.RemoveEmptyEntries);
-
-            if (message.Length <= 1)
-            {
-                return false;
-            }
-
-            if (!TryStartLineParse(message[0], ref tmpOffset))
-            {
-                return false;
-            }
-
-            if (!TryHeaderParse(message, ref tmpOffset))
-            {
-                return false;
-            }
+            _builder.Unpack(this, buffer, ref tmpOffset, count);
 
             if (ContentLength > 0)
             {
                 if (ContentLength > count - tmpOffset)
-                    return false;
+                {
+                    throw new ArgumentOutOfRangeException(nameof(ContentLength));
+                }
 
                 Content = new ArraySegment<byte>(buffer, tmpOffset, ContentLength);
                 tmpOffset += ContentLength;
             }
 
             offset = tmpOffset;
-            return true;
         }
 
-        public void Pack(ref byte[] buffer, ref int offset)
+        public override void Pack(ref byte[] buffer, ref int offset)
         {
-            byte[] message = Encoding.GetBytes(StartLineBuild() + HeaderBuild());
+            _builder.Pack(this, ref buffer, ref offset, ContentLength);
 
-            BufferBits.Prepare(ref buffer, offset, (message.Length + ContentLength));
-
-            BufferBits.SetBytes(message, buffer, ref offset);
             if (ContentLength > 0)
             {
                 BufferBits.SetBytes(Content.ToArray(), buffer, ref offset);
@@ -381,156 +356,6 @@
 
             Pack(ref buffer, ref offset);
             return new ArraySegment<byte>(buffer, 0, offset);
-        }
-
-        private string StartLineBuild()
-        {
-            string result;
-
-            if (Status != null)
-            {
-                result = $"{VERSION} {(int)Status.Value} {((SipStatus)Status).GetDescription()}";
-            }
-            else
-            {
-                result = $"{Method} {Request.Pack(false)} {VERSION}";
-            }
-
-            return result + SPACE + CRLF;
-        }
-
-        private string HeaderBuild()
-        {
-            var properties = new List<string>();
-            _properties.Build(this, (property, value) => properties.Add($"{property}: {value}"));
-
-            if (_cached.Count == 0)
-            {
-                return string.Join(SPACE + CRLF, properties) + SPACE + CRLF;
-            }
-
-            var line = 1;
-            var cached = string.Empty;
-            var enumeration = properties.GetEnumerator();
-
-            foreach (var item in _cached)
-            {
-                while (line < item.Key)
-                {
-                    if (!enumeration.MoveNext())
-                        break;
-
-                    cached += enumeration.Current + SPACE + CRLF;
-                    line++;
-                }
-
-                cached += item.Value + CRLF;
-                line++;
-            }
-
-            while (enumeration.MoveNext())
-            {
-                cached += enumeration.Current + SPACE + CRLF;
-            }
-
-            return cached + SPACE + CRLF;
-        }
-
-        private bool TryStartLineParse(string message, ref int offset)
-        {
-            string[] items = message.TrimEnd().Split(SPACE, 3, StringSplitOptions.RemoveEmptyEntries);
-            if (items.Length != 3)
-            {
-                return false;
-            }
-
-            if (items[0] == VERSION && int.TryParse(items[^2], out var status) && Enum.IsDefined(typeof(SipStatus), status))
-            {
-                Status = (SipStatus)status;
-            }
-            else if (items[^1] == VERSION && Enum.TryParse(items[0], true, out SipMethod method))
-            {
-                Request = SipUri.Parse(items[1]);
-                Method = method;
-            }
-            else
-            {
-                return false;
-            }
-
-            offset += Encoding.GetByteCount(message + CRLF);
-
-            return true;
-        }
-
-        private bool TryHeaderParse(string[] message, ref int offset)
-        {
-            Via.Clear();
-
-            _cached.Clear();
-
-            for (int i = 1; i < message.Length; i++)
-            {
-                offset += Encoding.GetByteCount(message[i] + CRLF);
-
-                if (message[i] == SPACE)
-                {
-                    return true;
-                }
-
-                var items = message[i].TrimEnd().Split(SEPARATOR, 2, StringSplitOptions.RemoveEmptyEntries);
-                if (items.Length != 2)
-                {
-                    return false;
-                }
-
-                if (!_properties.TryGetValue(items[0], out var property))
-                {
-                    _cached.Add(i, message[i]);
-                    continue;
-                }
-
-                try
-                {
-                    property.Set(this, items[1].TrimStart());
-                }
-                catch (Exception ex)
-                {
-                    throw new ArgumentException(items[0], ex);
-                }
-            }
-
-            return false;
-        }
-
-        private static string ViaGetter(SipPacket packet)
-        {
-            return string.Join(CRLF, packet.Via.Where(w => !w.IsEmpty()).Select(s => s.Pack()));
-        }
-
-        private static void ViaSetter(SipPacket packet, string value)
-        {
-            packet.Via.Add(SipVia.Parse(value));
-        }
-
-        private static string CSeqGetter(SipPacket packet)
-        {
-            return packet.CSeq + SPACE + packet.Method;
-        }
-
-        private static void CSeqSetter(SipPacket packet, string value)
-        {
-            string[] items = value.Split(SPACE, 2, StringSplitOptions.RemoveEmptyEntries);
-            if (items.Length != 2)
-                throw new ArgumentException();
-
-            if (!int.TryParse(items[0], out var cseq))
-                throw new ArgumentException();
-
-            Enum.TryParse<SipMethod>(items[1], out var method);
-
-            packet.Method = method;
-            packet.CSeq = cseq;
         }
 
         #endregion Methods

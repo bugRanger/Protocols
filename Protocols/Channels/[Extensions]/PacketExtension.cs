@@ -1,8 +1,8 @@
-﻿namespace Protocols.Extensions
+﻿namespace Protocols.Channels
 {
     public static class PacketExtension
     {
-        public static byte[] PackWith(this IPacket first, params IPacket[] seconds) 
+        public static byte[] PackWith(this IPacket first, params IPacket[] seconds)
         {
             byte[] buffer = new byte[0];
             int offset = 0;
