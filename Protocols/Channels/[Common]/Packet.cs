@@ -1,5 +1,6 @@
 ﻿namespace Protocols.Channels
 {
+    using System;
     using System.Collections.Generic;
 
     public abstract class Packet : IPacket
@@ -30,6 +31,16 @@
         public abstract void Pack(ref byte[] buffer, ref int offset);
 
         public abstract void Unpack(byte[] buffer, ref int offset, int count);
+
+        public ArraySegment<byte> Pack()
+        {
+            var buffer = new byte[0];
+            var offset = 0;
+
+            Pack(ref buffer, ref offset);
+
+            return new ArraySegment<byte>(buffer, 0, offset);
+        }
 
         #endregion Methods
     }

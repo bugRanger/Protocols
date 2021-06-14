@@ -90,16 +90,6 @@
             offset = tmpOffset;
         }
 
-        public ArraySegment<byte> Pack()
-        {
-            var buffer = new byte[0];
-            var offset = 0;
-
-            Pack(ref buffer, ref offset);
-
-            return new ArraySegment<byte>(buffer, 0, offset);
-        }
-
         #endregion Methods
     }
 }
