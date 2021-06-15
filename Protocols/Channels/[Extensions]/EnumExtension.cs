@@ -22,5 +22,10 @@
 
             return GenericEnum.ToString();
         }
+
+        public static T GetEnum<T>(this string value) where T : Enum
+        {
+            return (T)Enum.Parse(typeof(T), value);
+        }
     }
 }

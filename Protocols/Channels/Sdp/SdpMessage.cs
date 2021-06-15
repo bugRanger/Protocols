@@ -4,6 +4,7 @@
     using System.Text;
 
     using SdpTag = PacketItem<SdpMessage>;
+    using SdpGrp = PacketGroup<SdpMessage>;
 
     //v=0
     //o=- 1815849 0 IN IP4 194.167.15.181
@@ -46,6 +47,8 @@
 
         public SdpTiming Timing { get; set; }
 
+        public SdpMediaContainer Container { get; set; }
+
         #endregion Properties
 
         #region Constructors
@@ -59,7 +62,33 @@
                 new SdpTag("s", (packet) => packet.SessionName, (packet, value) => packet.SessionName = value),
                 new SdpTag("c", (packet) => packet.ConnectionData.Pack(), (packet, value) => packet.ConnectionData = SdpConnectionData.Parse(value)),
                 new SdpTag("t", (packet) => packet.Timing.Pack(), (packet, value) => packet.Timing = SdpTiming.Parse(value)),
-                //new SdpProperty("m", (packet) => packet.Version, (packet, value) => packet.Version = value),
+                new SdpGrp("m", 3)
+                {
+                    new SdpGrp(3)
+                    {
+                        new SdpTag(p => p.Container.Kind.GetDescription(), (p, v) => p.Container.Kind = v.GetEnum<MediaKind>()),
+                        new SdpGrp(2)
+                        {
+                            new SdpTag(p => p.Container.Port.ToString(), (p, v) => p.Container.Port = int.Parse(v)),
+                            new SdpTag(p => p.Container.PortCount.ToString(), (p, v) => p.Container.PortCount = int.Parse(v)),
+                        }
+                        .SetParam(p =>
+                        {
+                            p.Builder.Encoding = Encoding.ASCII;
+                            p.Builder.Separator = "/";
+                            p.Builder.TrailingSeparator = false;
+                        })
+
+                    }
+                    .SetParam(p =>
+                    {
+                        p.Name = "m";
+                        p.HasOrdered = false;
+                        p.Builder.Encoding = Encoding.ASCII;
+                        p.Builder.Separator = SPACE;
+                        p.Builder.TrailingSeparator = false;
+                    }),
+                }
             };
             _builder.Encoding = Encoding.ASCII;
             _builder.Equal = EQUAL;

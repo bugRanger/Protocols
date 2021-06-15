@@ -34,6 +34,10 @@ namespace Protocols.Channels
 
         public PacketItem(Getter<T> getter, Setter<T> settter = null, Available<T> available = null)
         {
+            HasOrdered = 
+                string.IsNullOrWhiteSpace(Name) && 
+                string.IsNullOrWhiteSpace(CompactName);
+
             Get = getter;
             Set = (packet, value) => settter?.Invoke(packet, value);
             GetAvailable = (packet) => available?.Invoke(packet) ?? true;

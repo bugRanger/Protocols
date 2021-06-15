@@ -41,23 +41,27 @@
         {
             _builder = new PacketBuilder<SipVia>(4)
             {
-                new PacketGroup<SipVia>(
-                    new PacketGroup<SipVia>(
+                new PacketGroup<SipVia>(2)
+                {
+                    new PacketGroup<SipVia>(3)
+                    {
                         new PacketItem<SipVia>((p) => SipPacket.PROT) { HasOrdered = true, HasConstant = true },
                         new PacketItem<SipVia>((p) => SipPacket.VERSION) { HasOrdered = true, HasConstant = true },
-                        new PacketItem<SipVia>((p) => p.Protocol, (p, v) => p.Protocol = v) { HasOrdered = true })
-                    .SetBuilder(builder =>
+                        new PacketItem<SipVia>((p) => p.Protocol, (p, v) => p.Protocol = v),
+                    }
+                    .SetParam(p =>
                     {
-                        builder.Encoding = SipPacket.Encoding;
-                        builder.Separator = SipPacket.SLASH;
-                        builder.TrailingSeparator = false;
+                        p.Builder.Encoding = SipPacket.Encoding;
+                        p.Builder.Separator = SipPacket.SLASH;
+                        p.Builder.TrailingSeparator = false;
                     }),
-                    new PacketItem<SipVia>((p) => p.Aliase, (p, v) => p.Aliase = v) { HasOrdered = true })
-                .SetBuilder(builder => 
+                    new PacketItem<SipVia>((p) => p.Aliase, (p, v) => p.Aliase = v),
+                }
+                .SetParam(p => 
                 {
-                    builder.Encoding = SipPacket.Encoding;
-                    builder.Separator = SipPacket.SPACE;
-                    builder.TrailingSeparator = false;
+                    p.Builder.Encoding = SipPacket.Encoding;
+                    p.Builder.Separator = SipPacket.SPACE;
+                    p.Builder.TrailingSeparator = false;
                 }),
 
                 new PacketItem<SipVia>("rport", (p) => p.ResponsePort.ToString(), (p, value) => p.ResponsePort = int.Parse(value), (p) => p.ResponsePort.HasValue),
