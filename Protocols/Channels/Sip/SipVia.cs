@@ -45,13 +45,12 @@
                 {
                     new PacketGroup<SipVia>(3)
                     {
-                        new PacketItem<SipVia>((p) => SipPacket.PROT) { HasOrdered = true, HasConstant = true },
-                        new PacketItem<SipVia>((p) => SipPacket.VERSION) { HasOrdered = true, HasConstant = true },
+                        new PacketItem<SipVia>((p) => SipPacket.PROT),
+                        new PacketItem<SipVia>((p) => SipPacket.VERSION),
                         new PacketItem<SipVia>((p) => p.Protocol, (p, v) => p.Protocol = v),
                     }
                     .SetParam(p =>
                     {
-                        p.Builder.Encoding = SipPacket.Encoding;
                         p.Builder.Separator = SipPacket.SLASH;
                         p.Builder.TrailingSeparator = false;
                     }),
@@ -59,7 +58,6 @@
                 }
                 .SetParam(p => 
                 {
-                    p.Builder.Encoding = SipPacket.Encoding;
                     p.Builder.Separator = SipPacket.SPACE;
                     p.Builder.TrailingSeparator = false;
                 }),
@@ -94,7 +92,7 @@
             _builder.Pack(this, ref buffer, ref offset);
         }
 
-        public string Pack()
+        public string PackStr()
         {
             return _builder.Pack(this);
         }

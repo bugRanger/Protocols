@@ -195,7 +195,7 @@ namespace Protocols.Tests
             // Arrange            
             var offset = 0;
             var concat = string.Empty;
-            var lines = message.Split("\r\n");
+            var lines = message.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
 
             // Act
             foreach (var item in lines)
@@ -240,12 +240,12 @@ namespace Protocols.Tests
                     message = message.Replace(item.Key, item.Value);
                 }
             }
-            var lines = message.Split("\r\n");
+            var lines = message.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
 
             // Act
             UnpackTest(message);
             _packet.Pack(ref bytes, ref offset);
-            var newLine = Encoding.ASCII.GetString(bytes).Split("\r\n");
+            var newLine = Encoding.ASCII.GetString(bytes).Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
 
             // Assert
             Assert.AreNotEqual(offset, 0);

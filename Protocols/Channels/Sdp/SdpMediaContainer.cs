@@ -19,13 +19,13 @@
 
         public int PortCount { get; set; }
 
-        public ProtocolType Protocol { get; set; }
+        public string Protocol { get; set; }
 
         public int? PacketTime { get; set; }
 
         public MediaMode Mode { get; set; }
 
-        public IDictionary<int, SdpMediaFormat> Formats { get; }
+        public IDictionary<byte, SdpMediaFormat> Formats { get; }
 
         #endregion Properties
 
@@ -33,9 +33,18 @@
 
         public SdpMediaContainer()
         {
-            Formats = new Dictionary<int, SdpMediaFormat>();
+            Formats = new Dictionary<byte, SdpMediaFormat>();
         }
 
         #endregion Constructors
+
+        #region Methods
+
+        public void Add(SdpMediaFormat format)
+        {
+            Formats[format.PayloadType] = format;
+        }
+
+        #endregion Methods
     }
 }

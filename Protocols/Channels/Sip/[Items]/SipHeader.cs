@@ -17,7 +17,6 @@
 
         public SipHeader() : base(Getter, Setter)
         {
-            HasOrdered = true;
         }
 
         #endregion Constructors
@@ -30,7 +29,7 @@
 
             if (packet.Status != null)
             {
-                result = $"{VERSION} {(int)packet.Status.Value} {((SipStatus)packet.Status).GetDescription()}";
+                result = $"{VERSION} {(int)packet.Status.Value} {((SipStatus)packet.Status).Pack()}";
             }
             else
             {

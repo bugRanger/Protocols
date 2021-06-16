@@ -40,20 +40,16 @@
 
         #region Methods
 
+        public void Add(PacketGroup<T> item)
+        {
+            item.SetParam(p => p.Builder.Encoding = Encoding);
+
+            AddImpl(item);
+        }
+
         public void Add(PacketItem<T> item)
         {
-            if (item.HasOrdered)
-            {
-                _headers.Add(item);
-                return;
-            }
-
-            _fields[item.Name] = item;
-
-            if (item.HasCompact)
-            {
-                _fields[item.CompactName] = item;
-            }
+            AddImpl(item);
         }
 
         public void Pack(T packet, ref byte[] buffer, ref int offset, int extraBytes = 0)
@@ -111,25 +107,22 @@
 
         public void Unpack(T packet, string message, ref int offset, int count)
         {
-            bool result = false;
-
             int tmpOffset = offset;
             int index = 0;
             int row = 0;
+
+            string line = null;
 
             packet.Unspecific.Clear();
 
             for (; tmpOffset < message.Length; row++)
             {
-                string line = string.Empty;
-
                 index = message.IndexOf(Separator, tmpOffset);
                 if (index == -1)
                 {
                     if (TrailingSeparator)
                     {
-                        result = false;
-                        break;
+                        throw new FormatException();
                     }
 
                     line = message[tmpOffset..message.Length];
@@ -141,21 +134,26 @@
                     tmpOffset = index + Separator.Length;
                 }
 
-                if (string.IsNullOrEmpty(line))
+                if (line == string.Empty)
                 {
-                    result = TrailingSeparator;
+                    if (!TrailingSeparator)
+                        throw new FormatException();
+
                     break;
                 }
 
                 if (row <= _headers.Count - 1)
                 {
-                    if (_headers[row].HasConstant && _headers[row].Get(packet) != line)
+                    if (!_headers[row].HasConstant)
                     {
-                        result = false;
-                        break;
+                        _headers[row].Set(packet, line);
+                    }
+                    else
+                    {
+                        if (_headers[row].Get(packet) != line)
+                            throw new FormatException();
                     }
 
-                    _headers[row].Set(packet, line);
                     continue;
                 }
 
@@ -168,8 +166,7 @@
 
                 if (tokens.Length != 2)
                 {
-                    result = false;
-                    break;
+                    throw new FormatException();
                 }
 
                 var propertyName = tokens[0];
@@ -184,26 +181,28 @@
 
                 if (attribute.HasConstant && attribute.Get(packet) != propertyValue)
                 {
-                    result = false;
-                    break;
+                    throw new FormatException();
                 }
 
                 attribute.Set(packet, propertyValue);
             }
 
-            if (!TrailingSeparator)
+            if (TrailingSeparator)
             {
-                result = tmpOffset == message.Length;
-            }
-
-            if (result)
-            {
-                offset = tmpOffset;
+                if (line != string.Empty)
+                {
+                    throw new FormatException();
+                }
             }
             else
             {
-                throw new ArgumentNullException();
+                if (tmpOffset != message.Length)
+                {
+                    throw new FormatException();
+                }
             }
+
+            offset = tmpOffset;
         }
 
         public void Unpack(T packet, string message)
@@ -252,6 +251,22 @@
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
+        }
+
+        private void AddImpl(PacketItem<T> item)
+        {
+            if (item.HasOrdered)
+            {
+                _headers.Add(item);
+                return;
+            }
+
+            _fields[item.Name] = item;
+
+            if (item.HasCompact)
+            {
+                _fields[item.CompactName] = item;
+            }
         }
 
         #endregion Methods

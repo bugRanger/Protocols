@@ -1,19 +1,13 @@
 ﻿namespace Protocols.Channels.Sdp
 {
-    using System.ComponentModel;
-
     public enum MediaMode
     {
-        [Description("recvonly")]
-        RecvOnly,
+        recvonly,
 
-        [Description("sendonly")]
-        SendOnly,
+        sendonly,
 
-        [Description("sendrecv")]
-        SendRecv,
+        sendrecv,
 
-        [Description("inactive")]
-        InActive,
+        inactive,
     }
 }

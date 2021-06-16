@@ -19,7 +19,7 @@
 
         private static string Getter(SipPacket packet)
         {
-            return string.Join(SipPacket.CRLF, packet.Via.Where(w => !w.IsEmpty()).Select(s => s.Pack()));
+            return string.Join(SipPacket.CRLF, packet.Via.Where(w => !w.IsEmpty()).Select(s => s.PackStr()));
         }
 
         private static void Setter(SipPacket packet, string value)

@@ -14,9 +14,9 @@ namespace Protocols.Channels
 
         public string CompactName { get; set; }
 
-        public bool HasOrdered { get; set; }
+        public bool HasConstant => Set == null;
 
-        public bool HasConstant { get; set; }
+        public bool HasOrdered => string.IsNullOrWhiteSpace(Name);
 
         public bool HasCompact => !string.IsNullOrWhiteSpace(CompactName);
 
@@ -32,17 +32,6 @@ namespace Protocols.Channels
 
         public PacketItem() { }
 
-        public PacketItem(Getter<T> getter, Setter<T> settter = null, Available<T> available = null)
-        {
-            HasOrdered = 
-                string.IsNullOrWhiteSpace(Name) && 
-                string.IsNullOrWhiteSpace(CompactName);
-
-            Get = getter;
-            Set = (packet, value) => settter?.Invoke(packet, value);
-            GetAvailable = (packet) => available?.Invoke(packet) ?? true;
-        }
-
         public PacketItem(string name, string compact, Getter<T> getter, Setter<T> settter, Available<T> available = null)
             : this(name, getter, settter, available)
         {
@@ -53,6 +42,13 @@ namespace Protocols.Channels
             : this(getter, settter, available)
         {
             Name = name;
+        }
+
+        public PacketItem(Getter<T> getter, Setter<T> settter = null, Available<T> available = null) : this()
+        {
+            Get = getter;
+            Set = settter;
+            GetAvailable = (packet) => available?.Invoke(packet) ?? true;
         }
 
         public string GetName(T packet)

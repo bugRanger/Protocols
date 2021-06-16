@@ -1,22 +1,15 @@
 ﻿namespace Protocols.Channels.Sdp
 {
-    using System.ComponentModel;
-
     public enum MediaKind
     {
-        [Description("audio")]
-        Audio,
+        audio,
 
-        [Description("video")]
-        Video,
+        video,
 
-        [Description("text")]
-        Text,
+        text,
 
-        [Description("application")]
-        Application,
+        application,
 
-        [Description("message")]
-        Message,
+        message,
     }
 }

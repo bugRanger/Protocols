@@ -5,6 +5,7 @@
 
     using SdpTag = PacketItem<SdpMessage>;
     using SdpGrp = PacketGroup<SdpMessage>;
+    using System.Linq;
 
     //v=0
     //o=- 1815849 0 IN IP4 194.167.15.181
@@ -64,36 +65,35 @@
                 new SdpTag("t", (packet) => packet.Timing.Pack(), (packet, value) => packet.Timing = SdpTiming.Parse(value)),
                 new SdpGrp("m", 3)
                 {
-                    new SdpGrp(3)
+                    new SdpTag(p => p.Container.Kind.Pack(), (p, v) => p.Container.Kind = v.Unpack<MediaKind>()),
+                    new SdpGrp(2)
                     {
-                        new SdpTag(p => p.Container.Kind.GetDescription(), (p, v) => p.Container.Kind = v.GetEnum<MediaKind>()),
-                        new SdpGrp(2)
-                        {
-                            new SdpTag(p => p.Container.Port.ToString(), (p, v) => p.Container.Port = int.Parse(v)),
-                            new SdpTag(p => p.Container.PortCount.ToString(), (p, v) => p.Container.PortCount = int.Parse(v)),
-                        }
-                        .SetParam(p =>
-                        {
-                            p.Builder.Encoding = Encoding.ASCII;
-                            p.Builder.Separator = "/";
-                            p.Builder.TrailingSeparator = false;
-                        })
-
+                        new SdpTag(p => p.Container.Port.ToString(), (p, v) => p.Container.Port = int.Parse(v)),
+                        new SdpTag(p => p.Container.PortCount.ToString(), (p, v) => p.Container.PortCount = int.Parse(v)),
                     }
                     .SetParam(p =>
                     {
-                        p.Name = "m";
-                        p.HasOrdered = false;
-                        p.Builder.Encoding = Encoding.ASCII;
-                        p.Builder.Separator = SPACE;
+                        p.Builder.Separator = "/";
                         p.Builder.TrailingSeparator = false;
                     }),
+                    new SdpTag(p => p.Container.Protocol, (p, v) => p.Container.Protocol = v),
+                    new SdpTag(p => string.Join(SPACE, p.Container.Formats.Keys), (p, v) => p.Container.Add(new SdpMediaFormat { PayloadType = byte.Parse(v) })),
                 }
+                .SetParam(p =>
+                {
+                    p.Builder.Separator = SPACE;
+                    p.Builder.TrailingSeparator = false;
+                }),
             };
             _builder.Encoding = Encoding.ASCII;
             _builder.Equal = EQUAL;
             _builder.Separator = SPACE + CRLF;
             _builder.TrailingSeparator = true;
+        }
+
+        public SdpMessage() 
+        {
+            Container = new SdpMediaContainer();
         }
 
         #endregion Constructors
